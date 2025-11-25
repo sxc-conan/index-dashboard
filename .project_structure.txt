@@ -1,0 +1,44 @@
+指数狂飙项目结构
+================
+
+📁 指数狂飙/
+├── 📄 README.md                    # 项目主文档
+├── 📄 QUICKSTART.md                # 快速开始指南（⭐ 新用户从这里开始）
+├── 📄 config.py                    # 配置文件
+├── 📄 requirements.txt             # Python依赖
+├── 🚀 start_server.py              # Web服务器启动脚本（⭐ 主要入口）
+│
+├── 📁 web/                         # Web界面文件夹（⭐ 新增）
+│   ├── 📄 README.md                # Web使用手册
+│   ├── 🌐 index.html               # 实时指数看板（含枢轴点）
+│   ├── 🌐 dashboard-simple.html    # 简单版仪表板
+│   └── 🔧 cors_proxy.py            # CORS代理服务器
+│
+├── 📁 data/                        # 数据文件目录
+├── 📁 charts/                      # 图表输出目录
+└── 📁 utils/                       # 工具函数
+    └── pivot_chart.py              # 枢轴点图表生成器
+
+关键文件说明
+===========
+
+⭐ 快速启动：
+   python start_server.py
+
+⭐ 主要功能：
+   - Web指数看板：实时监控全球指数
+   - 枢轴点展示：多时间周期分析
+   - 智能更新：开盘时5分钟，盘后1小时
+
+⭐ 支持指数：
+   美股：NDX, SPX, 黄金, 白银
+   港股：HSI, HSTECH
+   A股：CSI300, KCB50
+
+⭐ 文档导航：
+   1. 新手？→ QUICKSTART.md
+   2. Web使用？→ web/README.md
+   3. 详细说明？→ README.md
+
+最后更新：2025年11月24日
+

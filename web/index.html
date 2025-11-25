@@ -1,0 +1,2750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球指数实时监控 - 含枢轴点</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            opacity: 0.9;
+            font-size: 1em;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .control-section {
+            margin-bottom: 15px;
+        }
+
+        .control-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-section h3 {
+            color: #1e293b;
+            margin-bottom: 10px;
+            font-size: 1em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .tab-button {
+            padding: 12px 30px;
+            background: #e2e8f0;
+            color: #64748b;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button:hover {
+            background: #cbd5e1;
+            transform: translateY(-2px);
+        }
+
+        .tab-button.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .indices-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .indices-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .index-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .index-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .index-title {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        .index-value {
+            text-align: right;
+        }
+
+        .index-value .price {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        .index-value .change {
+            font-size: 1em;
+            margin-top: 5px;
+        }
+
+        .index-value .change.positive {
+            color: #10b981;
+        }
+
+        .index-value .change.negative {
+            color: #ef4444;
+        }
+
+        .chart-container {
+            height: 400px;
+            position: relative;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+            color: #1e293b;
+        }
+
+        .close-modal {
+            float: right;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #64748b;
+        }
+
+        .pivot-input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .input-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-field label {
+            font-size: 0.9em;
+            color: #64748b;
+            margin-bottom: 5px;
+        }
+
+        .input-field input {
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .input-field input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 全球指数实时监控 - 含枢轴点</h1>
+        <div class="subtitle">
+            追踪全球主要股票指数和贵金属价格 | 最后更新: <span id="lastUpdate">--</span><br>
+            <span id="updateStatus" style="font-size: 0.9em; opacity: 0.8;">数据模式: 多源智能切换（Yahoo Finance + 新浪财经）| 更新频率: 智能调整<br>
+            ⚠️ 注: 恒生科技指数受数据源限制，仅显示最新价格</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-section">
+            <h3>📊 市场分类</h3>
+            <div class="tabs">
+                <button class="tab-button active" onclick="switchTab('all')">全部</button>
+                <button class="tab-button" onclick="switchTab('hk')">港股</button>
+                <button class="tab-button" onclick="switchTab('us')">美股</button>
+                <button class="tab-button" onclick="switchTab('cn')">大A</button>
+            </div>
+        </div>
+        <div class="control-section">
+            <h3>⏱️ 全局时间范围</h3>
+            <div class="button-group">
+                <button onclick="setAllTimeRange('1D')">1天</button>
+                <button onclick="setAllTimeRange('1W')">1周</button>
+                <button onclick="setAllTimeRange('1M')">1月</button>
+                <button onclick="setAllTimeRange('3M')">3月</button>
+                <button onclick="openCustomTimeFilter()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">自定义筛选</button>
+                <button onclick="resetAllZoom()">重置所有</button>
+                <button onclick="toggleCorsProxy()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                    <span id="corsProxyText">启用CORS代理</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="indices-grid" id="indicesContainer">
+        <!-- 指数卡片将通过JavaScript动态生成 -->
+    </div>
+
+    <!-- 模态框模板 -->
+    <div id="modalTemplate" style="display: none;">
+        <div class="modal">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <h2></h2>
+                <div class="pivot-input-group">
+                    <div class="input-field">
+                        <label class="date-label">日期</label>
+                        <input type="date" class="pivot-date-input">
+                    </div>
+                    <div class="input-field">
+                        <label>枢轴点数值</label>
+                        <input type="number" class="pivot-value-input" step="0.01" placeholder="例如: 16500.50">
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button class="save-pivot-btn" style="width: 100%;">保存枢轴点</button>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button class="quick-add-btn" style="width: 100%; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        快速添加完整枢轴点（R3→S3）
+                    </button>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h4>已保存的枢轴点:</h4>
+                    <div class="pivot-list" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 定义所有要监控的指数及其预设枢轴点数据
+        const indices = [
+            {
+                id: 'ndx',
+                name: '纳斯达克100指数',
+                symbol: 'NDX',
+                apiSymbol: '^NDX',  // Yahoo Finance 指数代码
+                color: '#667eea',
+                baseValue: 20000,
+                category: 'us',
+                monthlyPivots: [
+                    { date: '2025-11', value: 28599.4, label: 'R3' },
+                    { date: '2025-11', value: 27390.7, label: 'R2' },
+                    { date: '2025-11', value: 26624.4, label: 'R1' },
+                    { date: '2025-11', value: 25415.8, label: 'P' },
+                    { date: '2025-11', value: 24649.5, label: 'S1' },
+                    { date: '2025-11', value: 23440.8, label: 'S2' },
+                    { date: '2025-11', value: 22674.5, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 26730.9, label: 'R3' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 26197.0, label: 'R2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 25602.6, label: 'R1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 25068.8, label: 'P' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 24474.4, label: 'S1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 23940.5, label: 'S2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 23346.1, label: 'S3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 26392.6, label: 'R3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 25807.8, label: 'R2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 25023.7, label: 'R1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 24438.9, label: 'P' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 23654.8, label: 'S1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 23069.9, label: 'S2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 22285.8, label: 'S3' }
+                ]
+            },
+            {
+                id: 'spx',
+                name: '标普500指数',
+                symbol: 'SPX',
+                apiSymbol: '^GSPC',  // Yahoo Finance 标普500代码
+                color: '#f59e0b',
+                baseValue: 5500,
+                category: 'us',
+                monthlyPivots: [
+                    { date: '2025-11', value: 7359.7, label: 'R3' },
+                    { date: '2025-11', value: 7140.0, label: 'R2' },
+                    { date: '2025-11', value: 6990.1, label: 'R1' },
+                    { date: '2025-11', value: 6770.4, label: 'P' },
+                    { date: '2025-11', value: 6620.5, label: 'S1' },
+                    { date: '2025-11', value: 6400.9, label: 'S2' },
+                    { date: '2025-11', value: 6251.0, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 7076.8, label: 'R3' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 6973.3, label: 'R2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 6853.7, label: 'R1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 6750.3, label: 'P' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 6630.7, label: 'S1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 6527.3, label: 'S2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 6407.6, label: 'S3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 6990.0, label: 'R3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 6880.2, label: 'R2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 6741.6, label: 'R1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 6631.8, label: 'P' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 6493.2, label: 'S1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 6383.3, label: 'S2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 6244.7, label: 'S3' }
+                ]
+            },
+            {
+                id: 'hsi',
+                name: '恒生指数',
+                symbol: 'HSI',
+                apiSymbol: '^HSI',  // Yahoo Finance 恒生指数代码
+                color: '#ef4444',
+                baseValue: 18000,
+                category: 'hk',
+                monthlyPivots: [
+                    { date: '2025-11', value: 29380.4, label: 'R3' },
+                    { date: '2025-11', value: 28381.1, label: 'R2' },
+                    { date: '2025-11', value: 27143.9, label: 'R1' },
+                    { date: '2025-11', value: 26144.6, label: 'P' },
+                    { date: '2025-11', value: 24907.4, label: 'S1' },
+                    { date: '2025-11', value: 23908.1, label: 'S2' },
+                    { date: '2025-11', value: 22670.9, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 27959.1, label: 'R3' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 27573.9, label: 'R2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 27073.2, label: 'R1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 26688.1, label: 'P' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 26187.3, label: 'S1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 25802.2, label: 'S2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 25301.4, label: 'S3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 27461.5, label: 'R3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 26996.7, label: 'R2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 26108.3, label: 'R1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 25643.5, label: 'P' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 24755.2, label: 'S1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 24290.3, label: 'S2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 23402.0, label: 'S3' }
+                ]
+            },
+            {
+                id: 'hstech',
+                name: '恒生科技指数',
+                symbol: 'HSTECH',
+                apiSymbol: 'HSTECH.HK',  // Yahoo Finance 恒生科技代码
+                color: '#8b5cf6',
+                baseValue: 3500,
+                category: 'hk',
+                monthlyPivots: [
+                    { date: '2025-11', value: 7487.5, label: 'R3' },
+                    { date: '2025-11', value: 7101.5, label: 'R2' },
+                    { date: '2025-11', value: 6504.8, label: 'R1' },
+                    { date: '2025-11', value: 6118.8, label: 'P' },
+                    { date: '2025-11', value: 5522.1, label: 'S1' },
+                    { date: '2025-11', value: 5136.1, label: 'S2' },
+                    { date: '2025-11', value: 4539.4, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 6190.0, label: 'R3' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 6107.8, label: 'R2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 5960.3, label: 'R1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 5878.0, label: 'P' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 5730.6, label: 'S1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 5648.3, label: 'S2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 5500.8, label: 'S3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 6172.0, label: 'R3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 6003.2, label: 'R2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 5699.3, label: 'R1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 5530.5, label: 'P' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 5226.7, label: 'S1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 5057.9, label: 'S2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4754.1, label: 'S3' }
+                ]
+            },
+            {
+                id: 'csi300',
+                name: '沪深300指数',
+                symbol: 'CSI300',
+                apiSymbol: '000300.SS',  // Yahoo Finance 沪深300代码
+                color: '#10b981',
+                baseValue: 3500,
+                category: 'cn',
+                monthlyPivots: [
+                    { date: '2025-11', value: 5042.3, label: 'R3' },
+                    { date: '2025-11', value: 4902.1, label: 'R2' },
+                    { date: '2025-11', value: 4771.4, label: 'R1' },
+                    { date: '2025-11', value: 4631.1, label: 'P' },
+                    { date: '2025-11', value: 4500.4, label: 'S1' },
+                    { date: '2025-11', value: 4360.2, label: 'S2' },
+                    { date: '2025-11', value: 4229.5, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4769.3, label: 'R3' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4738.2, label: 'R2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4683.2, label: 'R1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4652.1, label: 'P' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4597.0, label: 'S1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4565.9, label: 'S2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4510.9, label: 'S3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4739.7, label: 'R3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4682.3, label: 'R2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4567.9, label: 'R1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4510.6, label: 'P' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4396.2, label: 'S1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4338.8, label: 'S2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4224.5, label: 'S3' }
+                ]
+            },
+            {
+                id: 'kcb50',
+                name: '科创50指数',
+                symbol: 'KCB50',
+                apiSymbol: '000688.SS',  // Yahoo Finance 科创50代码
+                color: '#f97316',
+                baseValue: 800,
+                category: 'cn',
+                monthlyPivots: [
+                    { date: '2025-11', value: 1780.2, label: 'R3' },
+                    { date: '2025-11', value: 1684.5, label: 'R2' },
+                    { date: '2025-11', value: 1550.0, label: 'R1' },
+                    { date: '2025-11', value: 1454.4, label: 'P' },
+                    { date: '2025-11', value: 1319.9, label: 'S1' },
+                    { date: '2025-11', value: 1224.2, label: 'S2' },
+                    { date: '2025-11', value: 1089.7, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 1478.8, label: 'R3' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 1455.3, label: 'R2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 1408.3, label: 'R1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 1384.7, label: 'P' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 1337.7, label: 'S1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 1314.2, label: 'S2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 1267.2, label: 'S3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 1443.2, label: 'R3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 1410.4, label: 'R2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 1348.1, label: 'R1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 1315.3, label: 'P' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 1253.0, label: 'S1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 1220.2, label: 'S2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 1157.9, label: 'S3' }
+                ]
+            },
+            {
+                id: 'gold',
+                name: '国际现货黄金',
+                symbol: 'XAUUSD',
+                apiSymbol: 'GC=F',  // Yahoo Finance 黄金期货代码
+                color: '#fbbf24',
+                baseValue: 2000,
+                category: 'us',
+                monthlyPivots: [
+                    { date: '2025-11', value: 4881.9, label: 'R3' },
+                    { date: '2025-11', value: 4639.9, label: 'R2' },
+                    { date: '2025-11', value: 4326.7, label: 'R1' },
+                    { date: '2025-11', value: 4084.7, label: 'P' },
+                    { date: '2025-11', value: 3771.5, label: 'S1' },
+                    { date: '2025-11', value: 3529.5, label: 'S2' },
+                    { date: '2025-11', value: 3216.3, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4467.3, label: 'R3' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4358.7, label: 'R2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4221.5, label: 'R1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 4112.9, label: 'P' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 3975.7, label: 'S1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 3867.1, label: 'S2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 3729.9, label: 'S3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4269.2, label: 'R3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4201.7, label: 'R2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4132.3, label: 'R1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 4064.8, label: 'P' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 3995.4, label: 'S1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 3927.9, label: 'S2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 3858.5, label: 'S3' }
+                ]
+            },
+            {
+                id: 'silver',
+                name: '国际现货白银',
+                symbol: 'XAGUSD',
+                apiSymbol: 'SI=F',  // Yahoo Finance 白银期货代码
+                color: '#94a3b8',
+                baseValue: 25,
+                category: 'us',
+                monthlyPivots: [
+                    { date: '2025-11', value: 61.1, label: 'R3' },
+                    { date: '2025-11', value: 57.4, label: 'R2' },
+                    { date: '2025-11', value: 52.8, label: 'R1' },
+                    { date: '2025-11', value: 49.2, label: 'P' },
+                    { date: '2025-11', value: 44.6, label: 'S1' },
+                    { date: '2025-11', value: 40.9, label: 'S2' },
+                    { date: '2025-11', value: 36.3, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 60.0, label: 'R3' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 57.2, label: 'R2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 53.8, label: 'R1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 51.0, label: 'P' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 47.6, label: 'S1' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 44.8, label: 'S2' },
+                    { date: '2025-11-17', endDate: '2025-11-23', value: 41.4, label: 'S3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 56.1, label: 'R3' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 54.2, label: 'R2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 51.9, label: 'R1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 50.0, label: 'P' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 47.7, label: 'S1' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 45.8, label: 'S2' },
+                    { date: '2025-11-24', endDate: '2025-11-30', value: 43.5, label: 'S3' }
+                ]
+            }
+        ];
+
+        // 存储图表和数据
+        const charts = {};
+        const chartsData = {};
+        let currentTab = 'all';
+        let currentTimeRange = 'all'; // 追踪当前时间范围，用于决定数据粒度
+
+        // 根据时间范围获取数据粒度（interval）
+        function getDataInterval(range) {
+            // 智能粒度选择：根据时间范围选择最合适的数据粒度
+            switch(range) {
+                case '1H':      // 1小时 → 1分钟粒度
+                    return '1m';
+                case '1D':      // 1天 → 5分钟粒度
+                    return '5m';
+                case '1W':      // 1周 → 15分钟粒度
+                    return '15m';
+                case '1M':      // 1月 → 1小时粒度
+                    return '1h';
+                case '3M':      // 3月 → 1小时粒度
+                    return '1h';
+                case 'all':     // 全部 → 1天粒度
+                default:
+                    return '1d';
+            }
+        }
+
+        // 根据时间范围获取数据起始日期
+        function getDataStartDate(range) {
+            const now = new Date();
+            switch(range) {
+                case '1H':
+                    // 1小时：1分钟粒度，最近1小时
+                    return new Date(now.getTime() - 60 * 60 * 1000);
+                case '1D':
+                    // 1天：5分钟粒度，最近7天（Yahoo API限制）
+                    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                case '1W':
+                    // 1周：15分钟粒度，最近7天
+                    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                case '1M':
+                    // 1月：1小时粒度，最近30天
+                    return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                case '3M':
+                    // 3月：1小时粒度，最近90天
+                    return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+                case 'all':
+                default:
+                    // 全部：1天粒度，从2025-01-01开始
+                    return new Date('2025-01-01');
+            }
+        }
+
+        // 判断时间点是否在交易时间内
+        function isWithinTradingHours(date, category) {
+            const hour = date.getHours();
+            const minute = date.getMinutes();
+            const timeInMinutes = hour * 60 + minute;
+            
+            if (category === 'hk') {
+                // 港股交易时间：09:30-12:00, 13:00-16:00
+                return (timeInMinutes >= 9 * 60 + 30 && timeInMinutes <= 12 * 60) ||
+                       (timeInMinutes >= 13 * 60 && timeInMinutes <= 16 * 60);
+            } else if (category === 'cn') {
+                // A股交易时间：09:30-11:30, 13:00-15:00
+                return (timeInMinutes >= 9 * 60 + 30 && timeInMinutes <= 11 * 60 + 30) ||
+                       (timeInMinutes >= 13 * 60 && timeInMinutes <= 15 * 60);
+            } else if (category === 'us') {
+                // 美股交易时间（北京时间）：
+                // 夏令时 21:30 - 次日04:00
+                // 冬令时 22:30 - 次日05:00
+                // 简化处理：接受所有数据点（因为时区复杂）
+                return true;
+            }
+            
+            return true; // 默认接受所有时间
+        }
+
+        // 调整日期时间到正确的收盘时间（北京时间）
+        function adjustToMarketCloseTime(date, category) {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = d.getMonth();
+            const day = d.getDate();
+
+            // 根据市场类型设置收盘时间
+            if (category === 'us') {
+                // 美股：北京时间次日05:00收盘（冬令时）
+                // 需要判断是否是夏令时（3月第二个周日 - 11月第一个周日）
+                const isDST = isDaylightSavingTime(d);
+
+                if (isDST) {
+                    // 夏令时：北京时间次日04:00
+                    return new Date(year, month, day + 1, 4, 0, 0);
+                } else {
+                    // 冬令时：北京时间次日05:00
+                    return new Date(year, month, day + 1, 5, 0, 0);
+                }
+            } else if (category === 'hk') {
+                // 港股：北京时间16:00收盘
+                return new Date(year, month, day, 16, 0, 0);
+            } else if (category === 'cn') {
+                // A股：北京时间15:00收盘
+                return new Date(year, month, day, 15, 0, 0);
+            }
+
+            // 默认返回原始时间
+            return d;
+        }
+
+        // 判断是否是美国夏令时（3月第二个周日 - 11月第一个周日）
+        function isDaylightSavingTime(date) {
+            const year = date.getFullYear();
+
+            // 3月第二个周日
+            const marchSecondSunday = getNthSundayOfMonth(year, 2, 1);
+
+            // 11月第一个周日
+            const novemberFirstSunday = getNthSundayOfMonth(year, 10, 0);
+
+            return date >= marchSecondSunday && date < novemberFirstSunday;
+        }
+
+        // 获取某月第N个周日
+        function getNthSundayOfMonth(year, month, n) {
+            const firstDay = new Date(year, month, 1);
+            const firstSunday = firstDay.getDay() === 0 ? 1 : (7 - firstDay.getDay() + 1);
+            return new Date(year, month, firstSunday + (n * 7), 2, 0, 0); // 凌晨2点切换
+        }
+
+        // 初始化页面
+        function initPage() {
+            const container = document.getElementById('indicesContainer');
+            
+            // 初始化时间范围为'1M'（将在数据加载后应用）
+            currentTimeRange = '1M';
+
+            // 枢轴点数据版本号（更新枢轴点时修改此版本号以强制刷新）
+            const PIVOT_DATA_VERSION = '2025-11-24-disable-all-pivot-display-v14';
+            const versionKey = 'pivot_data_version';
+            const currentVersion = localStorage.getItem(versionKey);
+
+            // 如果版本号不匹配，清除所有旧的枢轴点缓存和数据缓存
+            if (currentVersion !== PIVOT_DATA_VERSION) {
+                console.log('🔄 检测到枢轴点数据更新，清除旧缓存...');
+                indices.forEach(index => {
+                    localStorage.removeItem(`pivots_${index.id}_monthly`);
+                    localStorage.removeItem(`pivots_${index.id}_weekly`);
+                    localStorage.removeItem(`cache_${index.id}`);
+                    localStorage.removeItem(`cache_${index.id}_timestamp`);
+                });
+                localStorage.setItem(versionKey, PIVOT_DATA_VERSION);
+                console.log('✅ 缓存已清除，将加载新的枢轴点数据');
+            }
+
+            indices.forEach(index => {
+                // 加载或初始化该指数的枢轴点数据
+                const monthlyKey = `pivots_${index.id}_monthly`;
+                const weeklyKey = `pivots_${index.id}_weekly`;
+
+                let monthlyPivots = JSON.parse(localStorage.getItem(monthlyKey)) || [];
+                let weeklyPivots = JSON.parse(localStorage.getItem(weeklyKey)) || [];
+
+                // 如果是首次使用，加载默认枢轴点
+                if (monthlyPivots.length === 0) {
+                    monthlyPivots = [...index.monthlyPivots];
+                    localStorage.setItem(monthlyKey, JSON.stringify(monthlyPivots));
+                }
+                if (weeklyPivots.length === 0) {
+                    weeklyPivots = [...index.weeklyPivots];
+                    localStorage.setItem(weeklyKey, JSON.stringify(weeklyPivots));
+                }
+
+                index.monthlyPivotsData = monthlyPivots;
+                index.weeklyPivotsData = weeklyPivots;
+                index.showPivots = true;
+
+                // 创建指数卡片
+                const card = document.createElement('div');
+                card.className = 'index-card';
+                card.id = `card-${index.id}`;
+                card.innerHTML = `
+                    <div class="index-header">
+                        <div class="index-title">${index.name} (${index.symbol})</div>
+                        <div class="index-value">
+                            <div class="price" id="${index.id}-price">加载中...</div>
+                            <div class="change" id="${index.id}-change">--</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="${index.id}-chart"></canvas>
+                    </div>
+                `;
+                container.appendChild(card);
+
+                // 创建该指数的模态框
+                createModalForIndex(index);
+
+                // 初始化图表
+                initChart(index);
+            });
+
+            updateLastUpdateTime();
+
+            // 获取真实数据 - Yahoo Finance API无速率限制，可以并发请求
+            console.log('🚀 开始并发获取所有指数数据...');
+            indices.forEach((index, idx) => {
+                // 添加小延迟避免浏览器并发限制，每个请求间隔200ms
+                setTimeout(() => {
+                    console.log(`🔄 [${idx + 1}/${indices.length}] 获取 ${index.name} 数据...`);
+                    fetchRealData(index);
+                }, idx * 200);
+            });
+
+            // 数据加载完成后，默认设置为显示最近1个月
+            setTimeout(() => {
+                console.log('📅 设置默认时间范围: 最近1个月');
+                setAllTimeRange('1M');
+            }, indices.length * 200 + 500);
+
+            // 启动自动更新（每小时检查一次）
+            startAutoUpdate();
+        }
+
+        // 创建指数专用的模态框
+        function createModalForIndex(index) {
+            // 月度模态框
+            const monthlyModal = document.createElement('div');
+            monthlyModal.id = `modal-${index.id}-monthly`;
+            monthlyModal.className = 'modal';
+            monthlyModal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close-modal" onclick="closePivotModal('${index.id}', 'monthly')">&times;</span>
+                    <h2>${index.name} - 设置月度枢轴点</h2>
+                    <div class="pivot-input-group">
+                        <div class="input-field">
+                            <label>日期</label>
+                            <input type="month" id="${index.id}-monthly-date">
+                        </div>
+                        <div class="input-field">
+                            <label>枢轴点数值</label>
+                            <input type="number" id="${index.id}-monthly-value" step="0.01" placeholder="例如: 16500.50">
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <button onclick="savePivot('${index.id}', 'monthly')" style="width: 100%;">保存月度枢轴点</button>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <button onclick="quickAddPivots('${index.id}', 'monthly')" style="width: 100%; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            快速添加完整月度枢轴点（R3→S3）
+                        </button>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <h4>已保存的月度枢轴点:</h4>
+                        <div id="${index.id}-monthly-list" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(monthlyModal);
+
+            // 周度模态框
+            const weeklyModal = document.createElement('div');
+            weeklyModal.id = `modal-${index.id}-weekly`;
+            weeklyModal.className = 'modal';
+            weeklyModal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close-modal" onclick="closePivotModal('${index.id}', 'weekly')">&times;</span>
+                    <h2>${index.name} - 设置周度枢轴点</h2>
+                    <div class="pivot-input-group">
+                        <div class="input-field">
+                            <label>开始日期</label>
+                            <input type="date" id="${index.id}-weekly-date">
+                        </div>
+                        <div class="input-field">
+                            <label>结束日期</label>
+                            <input type="date" id="${index.id}-weekly-enddate">
+                        </div>
+                        <div class="input-field">
+                            <label>枢轴点数值</label>
+                            <input type="number" id="${index.id}-weekly-value" step="0.01" placeholder="例如: 16500.50">
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <button onclick="savePivot('${index.id}', 'weekly')" style="width: 100%;">保存周度枢轴点</button>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <button onclick="quickAddPivots('${index.id}', 'weekly')" style="width: 100%; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            快速添加完整周度枢轴点（R3→S3）
+                        </button>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <h4>已保存的周度枢轴点:</h4>
+                        <div id="${index.id}-weekly-list" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(weeklyModal);
+        }
+
+        // 初始化单个图表
+        function initChart(index) {
+            const ctx = document.getElementById(`${index.id}-chart`).getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: index.name,
+                        data: [],
+                        borderColor: index.color,
+                        backgroundColor: `${index.color}20`,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                filter: function(legendItem, chartData) {
+                                    if (legendItem.text.includes('背景')) return false;
+                                    const datasets = chartData.datasets;
+                                    const firstIndex = datasets.findIndex(ds => ds.label === legendItem.text);
+                                    return legendItem.datasetIndex === firstIndex;
+                                },
+                                padding: 15,
+                                boxWidth: 40,
+                                boxHeight: 15,
+                                font: { size: 13 }
+                            },
+                            onClick: function(e, legendItem, legend) {
+                                const chart = legend.chart;
+                                const labelText = legendItem.text;
+                                const datasetsToToggle = chart.data.datasets
+                                    .map((ds, idx) => ({ ds, idx }))
+                                    .filter(item => item.ds.label === labelText);
+                                if (datasetsToToggle.length === 0) return;
+                                const isCurrentlyHidden = chart.isDatasetVisible(datasetsToToggle[0].idx) === false;
+                                datasetsToToggle.forEach(item => {
+                                    chart.setDatasetVisibility(item.idx, isCurrentlyHidden);
+                                });
+                                chart.update();
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                title: function(context) {
+                                    if (!context || context.length === 0) return '';
+                                    
+                                    const chart = context[0].chart;
+                                    const xScale = chart.scales.x;
+                                    const tooltip = chart.tooltip;
+                                    
+                                    let mouseTimeValue;
+                                    
+                                    // 使用tooltip的caretX获取鼠标在x轴上的实际位置
+                                    if (tooltip && tooltip.caretX !== undefined) {
+                                        mouseTimeValue = xScale.getValueForPixel(tooltip.caretX);
+                                    } else {
+                                        // 降级：使用主数据线的时间
+                                        const mainDataItem = context.find(item => item.dataset.label === index.name);
+                                        mouseTimeValue = mainDataItem ? mainDataItem.parsed.x : context[0].parsed.x;
+                                    }
+                                    
+                                    const date = new Date(mouseTimeValue);
+                                    const year = date.getFullYear();
+                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                    const day = String(date.getDate()).padStart(2, '0');
+                                    const hour = String(date.getHours()).padStart(2, '0');
+                                    const minute = String(date.getMinutes()).padStart(2, '0');
+                                    const second = String(date.getSeconds()).padStart(2, '0');
+                                    return `${year}-${month}-${day} ${hour}:${minute}:${second} (北京时间)`;
+                                },
+                                beforeLabel: (context) => {
+                                    return '';
+                                },
+                                label: function(context) {
+                                    const dataset = context.dataset;
+                                    const value = context.parsed.y;
+                                    if (!value) return null;
+                                    
+                                    // 背景渐变不显示
+                                    if (dataset.fill && !dataset.isPivot) return null;
+                                    
+                                    // 如果是枢轴点，需要检查鼠标是否在其有效期内
+                                    if (dataset.isPivot && dataset.data.length === 2) {
+                                        const startX = dataset.data[0].x.getTime();
+                                        const endX = dataset.data[1].x.getTime();
+                                        
+                                        // 获取鼠标实际位置（与title使用相同的方法）
+                                        const chart = context.chart;
+                                        const xScale = chart.scales.x;
+                                        const tooltip = chart.tooltip;
+                                        
+                                        let mouseTime;
+                                        if (tooltip && tooltip.caretX !== undefined) {
+                                            mouseTime = xScale.getValueForPixel(tooltip.caretX);
+                                        } else {
+                                            // 降级：使用主数据线的时间
+                                            const mainItem = tooltip.dataPoints.find(
+                                                item => item.dataset.label === index.name
+                                            );
+                                            mouseTime = mainItem ? mainItem.parsed.x : context.parsed.x;
+                                        }
+                                        
+                                        // 鼠标不在有效期内，不显示此枢轴点
+                                        if (mouseTime < startX || mouseTime > endX) {
+                                            return null;
+                                        }
+                                        
+                                        // 显示完整标签
+                                        if (dataset.pivotLabel) {
+                                            return `${dataset.pivotLabel}: ${value.toFixed(2)}`;
+                                        }
+                                    }
+                                    
+                                    // 普通指数数据
+                                    if (dataset.label === index.name) {
+                                        return `指数值: ${value.toFixed(2)}`;
+                                    }
+                                    
+                                    return null;
+                                },
+                                beforeBody: function(tooltipItems) {
+                                    tooltipItems.sort((a, b) => b.parsed.y - a.parsed.y);
+                                    return [];
+                                }
+                            }
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x'
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'x'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                    hour: 'MM-dd HH:mm',
+                                    day: 'MM-dd',
+                                    week: 'MM-dd',
+                                    month: 'yyyy-MM'
+                                },
+                                tooltipFormat: 'yyyy-MM-dd HH:mm:ss'
+                            },
+                            ticks: {
+                                callback: function(value, index, ticks) {
+                                    // 显示北京时间
+                                    const date = new Date(value);
+                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                    const day = String(date.getDate()).padStart(2, '0');
+                                    const hour = String(date.getHours()).padStart(2, '0');
+                                    const minute = String(date.getMinutes()).padStart(2, '0');
+
+                                    // 根据当前时间单位显示不同格式
+                                    const timeUnit = this.options.time.unit;
+                                    if (timeUnit === 'hour') {
+                                        return `${month}-${day} ${hour}:${minute}`;
+                                    } else if (timeUnit === 'day') {
+                                        return `${month}-${day}`;
+                                    } else if (timeUnit === 'week' || timeUnit === 'month') {
+                                        return `${month}-${day}`;
+                                    }
+                                    return value;
+                                }
+                            }
+                        },
+                        y: {
+                            grid: {
+                                display: false  // 隐藏Y轴横向网格线
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(2);
+                                }
+                            },
+                            grace: '10%'
+                        }
+                    }
+                }
+            });
+
+            charts[index.id] = chart;
+        }
+
+        // 本地数据缓存管理（支持按interval分别缓存）
+        function saveCachedData(indexId, data, interval = '1d') {
+            try {
+                // 将Date对象转换为时间戳以便存储
+                const serializedData = data.map(d => ({
+                    x: d.x.getTime(),
+                    y: d.y
+                }));
+                const cacheKey = `cache_${indexId}_${interval}`;
+                localStorage.setItem(cacheKey, JSON.stringify(serializedData));
+                localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
+                console.log(`💾 [${indexId}] 数据已缓存 (${interval})`);
+            } catch (e) {
+                console.warn(`⚠️ [${indexId}] 缓存保存失败:`, e);
+            }
+        }
+
+        function loadCachedData(indexId, interval = '1d') {
+            try {
+                const cacheKey = `cache_${indexId}_${interval}`;
+                const cached = localStorage.getItem(cacheKey);
+                if (!cached) return null;
+
+                const serializedData = JSON.parse(cached);
+                // 将时间戳转换回Date对象
+                return serializedData.map(d => ({
+                    x: new Date(d.x),
+                    y: d.y
+                }));
+            } catch (e) {
+                console.warn(`⚠️ [${indexId}] 缓存加载失败:`, e);
+                return null;
+            }
+        }
+
+        function getCacheAge(indexId, interval = '1d') {
+            const cacheKey = `cache_${indexId}_${interval}`;
+            const timestamp = localStorage.getItem(`${cacheKey}_timestamp`);
+            if (!timestamp) return Infinity;
+            return Date.now() - parseInt(timestamp);
+        }
+
+        // 根据数据粒度和市场状态，获取缓存最大有效期（智能过期策略）
+        function getCacheMaxAge(interval) {
+            // 检查是否有市场开盘
+            const anyMarketOpen = indices.some(idx => isMarketOpen(idx.category));
+            
+            if (anyMarketOpen) {
+                // 开盘时：根据粒度设置短期缓存
+                switch(interval) {
+                    case '1m':  return 1 * 60 * 1000;       // 1分钟
+                    case '5m':  return 5 * 60 * 1000;       // 5分钟
+                    case '15m': return 15 * 60 * 1000;      // 15分钟
+                    case '1h':  return 5 * 60 * 1000;       // 5分钟（开盘时更频繁）
+                    case '1d':  return 60 * 60 * 1000;      // 1小时
+                    default:    return 5 * 60 * 1000;       // 默认5分钟
+                }
+            } else {
+                // 盘后：使用较长缓存时间
+                switch(interval) {
+                    case '1m':  return 30 * 60 * 1000;      // 30分钟
+                    case '5m':  return 30 * 60 * 1000;      // 30分钟
+                    case '15m': return 60 * 60 * 1000;      // 1小时
+                    case '1h':  return 60 * 60 * 1000;      // 1小时
+                    case '1d':  return 24 * 60 * 60 * 1000; // 24小时
+                    default:    return 60 * 60 * 1000;      // 默认1小时
+                }
+            }
+        }
+
+        // 检查缓存是否有效
+        function isCacheValid(indexId, interval) {
+            const age = getCacheAge(indexId, interval);
+            const maxAge = getCacheMaxAge(interval);
+            return age < maxAge;
+        }
+
+        // 显示错误信息
+        function showError(index, message) {
+            const priceElement = document.getElementById(`${index.id}-price`);
+            const changeElement = document.getElementById(`${index.id}-change`);
+
+            if (priceElement) {
+                priceElement.textContent = '❌ 数据获取失败';
+                priceElement.style.color = '#ef4444';
+            }
+            if (changeElement) {
+                changeElement.textContent = message;
+                changeElement.className = 'change';
+                changeElement.style.color = '#ef4444';
+            }
+
+            console.error(`❌ ${index.name}: ${message}`);
+        }
+
+        // 多数据源配置
+        const dataSources = {
+            yahoo: {
+                name: 'Yahoo Finance',
+                fetchFunc: async (index, interval = '1d') => {
+                    // 根据interval确定数据起始日期
+                    const startDate = Math.floor(getDataStartDate(currentTimeRange).getTime() / 1000);
+                    const endDate = Math.floor(Date.now() / 1000);
+                    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${index.apiSymbol}?period1=${startDate}&period2=${endDate}&interval=${interval}`;
+
+                    let url;
+                    if (window.useCorsProxy) {
+                        url = `http://localhost:8889/?url=${encodeURIComponent(targetUrl)}`;
+                    } else {
+                        url = targetUrl;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const data = await response.json();
+                    if (!data.chart?.result?.[0]) throw new Error('无数据');
+
+                    const result = data.chart.result[0];
+                    const meta = result.meta || {};
+                    const timestamps = result.timestamp || [];
+                    const closes = result.indicators?.quote?.[0]?.close || [];
+
+                    const parsedData = [];
+                    const cutoffDate = getDataStartDate(currentTimeRange);
+
+                    // 解析历史数据（如果有）
+                    if (timestamps.length > 0 && closes.length > 0) {
+                        // 调试：打印前3个时间戳（细粒度数据）
+                        const isIntraday = ['1m', '5m', '15m', '1h'].includes(interval);
+                        if (isIntraday && timestamps.length > 3) {
+                            console.log(`🔍 [${index.name}] ${interval}数据前3个时间戳调试:`);
+                            for (let i = 0; i < Math.min(3, timestamps.length); i++) {
+                                const d = new Date(timestamps[i] * 1000);
+                                console.log(`   点${i}: UTC=${d.toISOString()}, 本地=${d.toLocaleString('zh-CN')}, 小时=${d.getHours()}`);
+                            }
+                        }
+                        
+                        for (let i = 0; i < timestamps.length; i++) {
+                            // Yahoo Finance 返回的时间戳
+                            const utcDate = new Date(timestamps[i] * 1000);
+                            const close = closes[i];
+                            if (close !== null && !isNaN(close)) {
+                                let timePoint;
+                                
+                                if (isIntraday) {
+                                    // 细粒度数据（1m/5m/15m/1h）：直接使用原始时间戳（Yahoo已经按照本地市场时间返回）
+                                    timePoint = utcDate;
+                                    
+                                    // 检查是否在cutoff日期之后
+                                    if (timePoint < cutoffDate) continue;
+                                    
+                                    // 过滤掉交易时间外的数据点（基于本地时间）
+                                    if (!isWithinTradingHours(timePoint, index.category)) {
+                                        continue;
+                                    }
+                                } else {
+                                    // 每日数据：调整到收盘时间
+                                    timePoint = adjustToMarketCloseTime(utcDate, index.category);
+                                    if (timePoint < cutoffDate) continue;
+                                }
+
+                                parsedData.push({
+                                    x: timePoint,
+                                    y: parseFloat(close)
+                                });
+                            }
+                        }
+                    }
+
+                    // 如果没有历史数据但有最新价格，创建一个当前时间点
+                    if (parsedData.length === 0 && meta.regularMarketPrice) {
+                        const now = new Date(meta.regularMarketTime * 1000);
+                        parsedData.push({
+                            x: now,
+                            y: parseFloat(meta.regularMarketPrice)
+                        });
+                        console.warn(`⚠️ [${index.name}] 仅获取到最新价格，无历史数据`);
+                    }
+
+                    if (parsedData.length === 0) {
+                        throw new Error('无历史数据且无最新价格');
+                    }
+
+                    // 对于细粒度数据（1m/5m/15m/1h），使用meta中的收盘价替换最后一个数据点
+                    // 这样可以确保收盘时间的数据点是准确的收盘价
+                    const isIntraday = ['1m', '5m', '15m', '1h'].includes(interval);
+                    if (isIntraday && parsedData.length > 0 && meta.regularMarketPrice) {
+                        const lastPoint = parsedData[parsedData.length - 1];
+                        const regularMarketTime = new Date(meta.regularMarketTime * 1000);
+                        
+                        // 如果最后一个点的时间接近regularMarketTime（收盘时间），使用准确的收盘价
+                        const timeDiff = Math.abs(lastPoint.x - regularMarketTime);
+                        if (timeDiff < 10 * 60 * 1000) { // 10分钟内认为是同一时间点
+                            lastPoint.y = parseFloat(meta.regularMarketPrice);
+                            // 调整到标准收盘时间（港股16:00，美股次日04:00/05:00，A股15:00）
+                            lastPoint.x = adjustToMarketCloseTime(regularMarketTime, index.category);
+                            console.log(`🔄 [${index.name}] 使用准确收盘价更新最后数据点: ${lastPoint.y.toFixed(2)} @ ${lastPoint.x.toLocaleString('zh-CN')}`);
+                        }
+                    }
+
+                    return parsedData;
+                }
+            },
+            sina: {
+                name: '新浪财经',
+                fetchFunc: async (index) => {
+                    // 新浪财经的symbol映射
+                    const sinaSymbolMap = {
+                        'kcb50': 'sh000688',  // 科创50
+                        'csi300': 'sh000300', // 沪深300
+                    };
+
+                    const sinaSymbol = sinaSymbolMap[index.id];
+                    if (!sinaSymbol) throw new Error('不支持此指数');
+
+                    const targetUrl = `https://quotes.sina.cn/cn/api/jsonp_v2.php/=/CN_MarketDataService.getKLineData?symbol=${sinaSymbol}&scale=240&datalen=200`;
+
+                    let url;
+                    if (window.useCorsProxy) {
+                        url = `http://localhost:8889/?url=${encodeURIComponent(targetUrl)}`;
+                    } else {
+                        url = targetUrl;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const content = await response.text();
+
+                    // 解析JSONP格式: /*...*/=([{...}])
+                    const match = content.match(/=\((.*)\)/);
+                    if (!match) throw new Error('JSONP解析失败');
+
+                    const data = JSON.parse(match[1]);
+
+                    const parsedData = [];
+                    const cutoffDate = new Date('2025-01-01');
+
+                    for (const item of data) {
+                        const date = new Date(item.day);
+                        if (date >= cutoffDate) {
+                            // 调整时间到正确的收盘时间
+                            const adjustedDate = adjustToMarketCloseTime(date, index.category);
+                            parsedData.push({
+                                x: adjustedDate,
+                                y: parseFloat(item.close)
+                            });
+                        }
+                    }
+
+                    return parsedData;
+                }
+            },
+            tencent: {
+                name: '腾讯财经',
+                fetchFunc: async (index) => {
+                    // 腾讯财经的symbol映射
+                    const tencentSymbolMap = {
+                        'hstech': 'hkHSTECH',  // 恒生科技
+                        'hsi': 'hkHSI',        // 恒生指数
+                    };
+
+                    const tencentSymbol = tencentSymbolMap[index.id];
+                    if (!tencentSymbol) throw new Error('不支持此指数');
+
+                    const targetUrl = `http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${tencentSymbol},day,2025-01-01,2025-12-31,200,qfq`;
+
+                    let url;
+                    if (window.useCorsProxy) {
+                        url = `http://localhost:8889/?url=${encodeURIComponent(targetUrl)}`;
+                    } else {
+                        url = targetUrl;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const data = await response.json();
+
+                    if (data.code !== 0) throw new Error(`API错误: ${data.msg}`);
+                    if (!data.data) throw new Error('无data字段');
+
+                    const indexData = data.data[tencentSymbol];
+                    if (!indexData) throw new Error('无指数数据');
+
+                    const klines = indexData.day || indexData.qfqday || [];
+                    if (klines.length === 0) throw new Error('无K线数据');
+
+                    const parsedData = [];
+                    const cutoffDate = new Date('2025-01-01');
+
+                    // 腾讯数据格式: [日期, 开盘, 收盘, 最高, 最低, 成交量]
+                    for (const item of klines) {
+                        const date = new Date(item[0]);
+                        if (date >= cutoffDate) {
+                            parsedData.push({
+                                x: date,
+                                y: parseFloat(item[2])  // 收盘价
+                            });
+                        }
+                    }
+
+                    return parsedData;
+                }
+            },
+            eastmoney: {
+                name: '东方财富',
+                fetchFunc: async (index) => {
+                    // 东方财富的secid映射 (格式: 市场代码.股票代码)
+                    // 港股指数可能的格式: 100.XXX (港股) 或 124.XXX (港股指数)
+                    const eastmoneySymbolMap = {};
+
+                    const secid = eastmoneySymbolMap[index.id];
+                    if (!secid) throw new Error('不支持此指数');
+
+                    const targetUrl = `http://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=0&end=20251123&lmt=100`;
+
+                    let url;
+                    if (window.useCorsProxy) {
+                        url = `http://localhost:8889/?url=${encodeURIComponent(targetUrl)}`;
+                    } else {
+                        url = targetUrl;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const data = await response.json();
+
+                    if (!data.data || !data.data.klines) throw new Error('无K线数据');
+
+                    const klines = data.data.klines;
+                    const parsedData = [];
+                    const cutoffDate = new Date('2025-01-01');
+
+                    // 东方财富数据格式: "日期,开盘,收盘,最高,最低,成交量,成交额,振幅,涨跌幅,涨跌额,换手率"
+                    for (const line of klines) {
+                        const fields = line.split(',');
+                        const date = new Date(fields[0]);
+                        if (date >= cutoffDate) {
+                            parsedData.push({
+                                x: date,
+                                y: parseFloat(fields[2])  // 收盘价
+                            });
+                        }
+                    }
+
+                    return parsedData;
+                }
+            },
+            sinahq: {
+                name: '新浪港股',
+                fetchFunc: async (index) => {
+                    // 新浪港股API的symbol映射
+                    const sinahqSymbolMap = {};
+
+                    const symbol = sinahqSymbolMap[index.id];
+                    if (!symbol) throw new Error('不支持此指数');
+
+                    const targetUrl = `https://stock.finance.sina.com.cn/hkstock/api/jsonp_v2.php/=/GlobalIndexService.getGlobalIndexData?symbol=${symbol}&period=day&num=100`;
+
+                    let url;
+                    if (window.useCorsProxy) {
+                        url = `http://localhost:8889/?url=${encodeURIComponent(targetUrl)}`;
+                    } else {
+                        url = targetUrl;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const content = await response.text();
+
+                    // 解析JSONP格式: /*...*/=([{...}])
+                    const match = content.match(/=\((.*)\)/);
+                    if (!match) throw new Error('JSONP解析失败');
+
+                    const data = JSON.parse(match[1]);
+
+                    const parsedData = [];
+                    const cutoffDate = new Date('2025-01-01');
+
+                    for (const item of data) {
+                        const date = new Date(item.date);
+                        if (date >= cutoffDate) {
+                            parsedData.push({
+                                x: date,
+                                y: parseFloat(item.close)
+                            });
+                        }
+                    }
+
+                    return parsedData;
+                }
+            },
+            netease: {
+                name: '网易财经',
+                fetchFunc: async (index) => {
+                    // 网易财经的symbol映射
+                    const neteaseSymbolMap = {};
+
+                    const symbol = neteaseSymbolMap[index.id];
+                    if (!symbol) throw new Error('不支持此指数');
+
+                    const targetUrl = `https://img1.money.126.net/data/hs/kline/day/history/2025/${symbol}.json`;
+
+                    let url;
+                    if (window.useCorsProxy) {
+                        url = `http://localhost:8889/?url=${encodeURIComponent(targetUrl)}`;
+                    } else {
+                        url = targetUrl;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const data = await response.json();
+
+                    if (!data.data) throw new Error('无data字段');
+
+                    const parsedData = [];
+                    const cutoffDate = new Date('2025-01-01');
+
+                    // 网易数据格式: [日期, 开盘, 最高, 最低, 收盘, 成交量, ...]
+                    for (const item of data.data) {
+                        const dateStr = item[0];  // 格式: 20241123
+                        const date = new Date(
+                            dateStr.slice(0, 4) + '-' +
+                            dateStr.slice(4, 6) + '-' +
+                            dateStr.slice(6, 8)
+                        );
+                        if (date >= cutoffDate) {
+                            parsedData.push({
+                                x: date,
+                                y: parseFloat(item[4])  // 收盘价
+                            });
+                        }
+                    }
+
+                    return parsedData;
+                }
+            },
+            sohu: {
+                name: '搜狐财经',
+                fetchFunc: async (index) => {
+                    // 搜狐财经的symbol映射
+                    const sohuSymbolMap = {};
+
+                    const symbol = sohuSymbolMap[index.id];
+                    if (!symbol) throw new Error('不支持此指数');
+
+                    const targetUrl = `https://q.stock.sohu.com/hisHq?code=${symbol}&start=20250101&end=20251231&stat=1&order=D&period=d`;
+
+                    let url;
+                    if (window.useCorsProxy) {
+                        url = `http://localhost:8889/?url=${encodeURIComponent(targetUrl)}`;
+                    } else {
+                        url = targetUrl;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const data = await response.json();
+
+                    if (!data.hq) throw new Error('无hq字段');
+
+                    const parsedData = [];
+                    const cutoffDate = new Date('2025-01-01');
+
+                    // 搜狐数据格式: ["日期", "开盘", "收盘", "涨跌", "涨跌幅", "最低", "最高", "成交量", ...]
+                    for (const item of data.hq) {
+                        const date = new Date(item[0]);
+                        if (date >= cutoffDate) {
+                            parsedData.push({
+                                x: date,
+                                y: parseFloat(item[2])  // 收盘价
+                            });
+                        }
+                    }
+
+                    return parsedData;
+                }
+            }
+        };
+
+        // 获取真实数据 - 多数据源支持
+        async function fetchRealData(index, forceRefresh = false) {
+            try {
+                // 根据当前时间范围获取数据粒度
+                const interval = getDataInterval(currentTimeRange);
+                console.log(`🔄 [${index.name}] 开始获取数据 (粒度: ${interval})...`);
+
+                // 先加载缓存数据
+                const cachedData = loadCachedData(index.id, interval);
+                
+                // 检查缓存是否有效
+                const cacheValid = cachedData && cachedData.length > 0 && isCacheValid(index.id, interval);
+                
+                // 如果不是强制刷新且缓存有效，直接使用缓存
+                if (!forceRefresh && cacheValid) {
+                    const cacheAge = getCacheAge(index.id, interval);
+                    const ageMinutes = Math.floor(cacheAge / 60000);
+                    console.log(`💾 [${index.name}] 缓存有效，直接使用: ${cachedData.length}个点 (${interval}, 缓存年龄: ${ageMinutes}分钟)`);
+                    chartsData[index.id] = cachedData;
+                    updateChart(index);
+                    updateInfo(index);
+                    return; // 缓存有效，直接返回，不需要重新获取
+                }
+                
+                // 缓存无效或强制刷新，先显示旧缓存（如果有），然后获取新数据
+                if (cachedData && cachedData.length > 0) {
+                    console.log(`💾 [${index.name}] 缓存已过期，先显示旧数据，然后更新: ${cachedData.length}个点 (${interval})`);
+                    chartsData[index.id] = cachedData;
+                    updateChart(index);
+                    updateInfo(index);
+                }
+
+                // 确定数据源优先级
+                let sources = ['yahoo'];
+
+                // 科创50和沪深300优先使用新浪财经（仅限每日数据）
+                if ((index.id === 'kcb50' || index.id === 'csi300') && interval === '1d') {
+                    sources = ['sina', 'yahoo'];
+                }
+
+                let parsedData = null;
+                let usedSource = null;
+
+                // 尝试各个数据源
+                for (const sourceName of sources) {
+                    try {
+                        console.log(`📡 [${index.name}] 尝试数据源: ${dataSources[sourceName].name}`);
+                        parsedData = await dataSources[sourceName].fetchFunc(index, interval);
+
+                        if (parsedData && parsedData.length > 1) {
+                            usedSource = sourceName;
+                            console.log(`✅ [${index.name}] ${dataSources[sourceName].name} 返回${parsedData.length}个数据点`);
+                            break;
+                        } else {
+                            console.warn(`⚠️ [${index.name}] ${dataSources[sourceName].name} 数据不足`);
+                        }
+                    } catch (error) {
+                        console.warn(`⚠️ [${index.name}] ${dataSources[sourceName].name} 失败: ${error.message}`);
+                    }
+                }
+
+                if (!parsedData || parsedData.length === 0) {
+                    // 所有数据源都失败，继续使用缓存
+                    if (!cachedData || cachedData.length === 0) {
+                        showError(index, '所有数据源均无法获取数据');
+                    }
+                    return;
+                }
+
+                // 检查数据点是否足够绘图（至少需要2个点）
+                if (parsedData.length < 2) {
+                    console.warn(`⚠️ [${index.name}] 数据点不足（${parsedData.length}个），无法绘制趋势线`);
+
+                    // 如果只有1个点，至少更新价格显示和图表
+                    if (parsedData.length === 1) {
+                        chartsData[index.id] = parsedData;
+
+                        // 更新图表显示这个单点
+                        const chart = charts[index.id];
+                        if (chart) {
+                            chart.data.datasets[0].data = parsedData;
+                            chart.data.datasets[0].pointRadius = 8;  // 放大点
+                            chart.data.datasets[0].pointHoverRadius = 10;
+                            chart.data.datasets[0].pointBackgroundColor = index.color;
+                            chart.data.datasets[0].pointBorderColor = '#ffffff';
+                            chart.data.datasets[0].pointBorderWidth = 2;
+                            chart.update('none');
+                        }
+
+                        updateInfo(index);
+
+                        // 显示友好提示
+                        const priceElement = document.getElementById(`${index.id}-price`);
+                        if (priceElement) {
+                            priceElement.textContent = parsedData[0].y.toFixed(2);
+                            priceElement.style.color = '#1e293b';
+                        }
+
+                        const changeElement = document.getElementById(`${index.id}-change`);
+                        if (changeElement) {
+                            changeElement.textContent = '数据源受限，仅显示最新价格';
+                            changeElement.className = 'change';
+                            changeElement.style.color = '#f59e0b';
+                        }
+
+                        console.log(`ℹ️ [${index.name}] 显示最新价格: ${parsedData[0].y.toFixed(2)}`);
+                    } else if (!cachedData || cachedData.length < 2) {
+                        showError(index, `数据不足：仅${parsedData.length}个数据点`);
+                    }
+                    return;
+                }
+
+                // 按时间排序
+                parsedData.sort((a, b) => a.x - b.x);
+
+                chartsData[index.id] = parsedData;
+
+                // 保存到缓存（使用对应的interval）
+                saveCachedData(index.id, parsedData, interval);
+
+                updateChart(index);
+                updateInfo(index);
+                console.log(`✅ [${index.name}] 成功获取${parsedData.length}个数据点 (来源: ${dataSources[usedSource].name}, 粒度: ${interval})`);
+                console.log(`   📅 时间范围: ${parsedData[0].x.toLocaleString('zh-CN')} 至 ${parsedData[parsedData.length-1].x.toLocaleString('zh-CN')}`);
+                console.log(`   💰 价格范围: ${Math.min(...parsedData.map(d => d.y)).toFixed(2)} 至 ${Math.max(...parsedData.map(d => d.y)).toFixed(2)}`);
+
+            } catch (error) {
+                console.error(`❌ ${index.name} 详细错误:`, error);
+
+                // 如果是CORS错误，下次使用代理
+                if (error.message && error.message.includes('CORS')) {
+                    console.warn('⚠️ 检测到CORS错误，下次将使用代理');
+                    window.useCorsProxy = true;
+                }
+
+                showError(index, `网络错误: ${error.message}`);
+            }
+        }
+
+        // 判断是否在开盘时间
+        function isMarketOpen(category) {
+            const now = new Date();
+            const day = now.getDay(); // 0=周日, 1-5=周一至周五, 6=周六
+            const hour = now.getHours();
+            const minute = now.getMinutes();
+
+            // 周末不开盘
+            if (day === 0 || day === 6) return false;
+
+            if (category === 'us') {
+                // 美股开盘时间：周一至周五 北京时间 21:30 - 次日04:00
+                // 简化判断：21:30 - 23:59 或 00:00 - 04:00
+                return (hour >= 21 && hour <= 23) || (hour >= 0 && hour < 4);
+            } else if (category === 'hk') {
+                // 港股开盘时间：周一至周五 09:30-12:00, 13:00-16:00
+                return (hour >= 9 && hour < 12) || (hour >= 13 && hour < 16);
+            } else if (category === 'cn') {
+                // A股开盘时间：周一至周五 09:30-11:30, 13:00-15:00
+                return (hour >= 9 && hour < 12) || (hour >= 13 && hour < 15);
+            }
+
+            return false;
+        }
+
+        // 智能自动更新 - 根据开盘状态动态调整频率
+        function startAutoUpdate() {
+            function scheduleNextUpdate() {
+                const anyMarketOpen = indices.some(index => isMarketOpen(index.category));
+
+                // 确定更新间隔
+                let updateInterval;
+                if (anyMarketOpen) {
+                    updateInterval = 5 * 60 * 1000; // 开盘时间：5分钟
+                    console.log('⏰ 市场开盘中，设置5分钟更新间隔');
+                } else {
+                    updateInterval = 60 * 60 * 1000; // 盘后：1小时
+                    console.log('⏰ 市场休市中，设置1小时更新间隔');
+                }
+
+                setTimeout(() => {
+                    console.log('🔄 开始定时更新数据...');
+
+                    indices.forEach((index, idx) => {
+                        const cacheAge = getCacheAge(index.id);
+                        const cacheAgeMinutes = Math.floor(cacheAge / 60000);
+
+                        if (isMarketOpen(index.category)) {
+                            // 开盘时间：缓存超过5分钟就更新
+                            if (cacheAge > 5 * 60 * 1000) {
+                                console.log(`🔄 [${index.name}] 开盘中，更新数据（缓存${cacheAgeMinutes}分钟）`);
+                                setTimeout(() => fetchRealData(index), idx * 200);
+                            }
+                        } else {
+                            // 盘后：缓存超过1小时才更新
+                            if (cacheAge > 60 * 60 * 1000) {
+                                console.log(`🔄 [${index.name}] 盘后，更新数据（缓存${cacheAgeMinutes}分钟）`);
+                                setTimeout(() => fetchRealData(index), idx * 200);
+                            }
+                        }
+                    });
+
+                    updateLastUpdateTime();
+
+                    // 递归调度下一次更新
+                    scheduleNextUpdate();
+                }, updateInterval);
+            }
+
+            // 开始调度
+            scheduleNextUpdate();
+        }
+
+        // ==================== 枢轴点功能 ====================
+        
+        // 生成枢轴点的水平线数据
+        function createPivotLine(startDate, endDate, value) {
+            return [
+                { x: new Date(startDate), y: value },
+                { x: new Date(endDate), y: value }
+            ];
+        }
+
+        // 获取月度枢轴点的时间范围
+        function getMonthlyPivotTimeRange(dateStr) {
+            const [year, month] = dateStr.split('-').map(Number);
+            const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+            const lastDay = new Date(year, month, 0).getDate();
+            const endDate = new Date(year, month - 1, lastDay, 23, 59, 59, 999);
+            return { startDate, endDate };
+        }
+
+        // 获取周度枢轴点的时间范围
+        function getWeeklyPivotTimeRange(dateStr, endDateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+            const startDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+            const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+            return { startDate, endDate };
+        }
+
+        // 判断时间范围是否与图表可见范围有交集
+        function isTimeRangeVisible(rangeStart, rangeEnd, chartStartTime, chartEndTime) {
+            if (rangeEnd < chartStartTime || rangeStart > chartEndTime) {
+                return false;
+            }
+            return true;
+        }
+
+        // 为图表添加月度枢轴点
+        function addMonthlyPivots(index, chart, chartData) {
+            if (!index.monthlyPivots || index.monthlyPivots.length === 0) return;
+            
+            let chartStartTime = null;
+            let chartEndTime = null;
+            if (chartData && chartData.length > 0) {
+                chartStartTime = chartData[0].x.getTime();
+                chartEndTime = chartData[chartData.length - 1].x.getTime();
+            }
+            
+            const monthlyGroups = {};
+            index.monthlyPivots.forEach(pivot => {
+                if (!monthlyGroups[pivot.date]) {
+                    monthlyGroups[pivot.date] = [];
+                }
+                monthlyGroups[pivot.date].push(pivot);
+            });
+            
+            Object.keys(monthlyGroups).forEach(monthStr => {
+                const pivots = monthlyGroups[monthStr];
+                const { startDate, endDate } = getMonthlyPivotTimeRange(monthStr);
+                
+                // 注释掉时间范围检查，始终显示配置的枢轴点
+                // if (chartStartTime && chartEndTime) {
+                //     if (!isTimeRangeVisible(startDate.getTime(), endDate.getTime(), chartStartTime, chartEndTime)) {
+                //         return;
+                //     }
+                // }
+                
+                const month = monthStr.split('-')[1];
+                const legendPrefix = `M${month}`;
+                
+                pivots.forEach((pivot, idx) => {
+                    const lineData = createPivotLine(startDate, endDate, pivot.value);
+                    
+                    // 月度枢轴点使用高透明度+较粗线条（更显眼）
+                    let color = 'rgba(245, 158, 11, 0.8)';  // P点橙色 80%
+                    if (pivot.label.startsWith('R')) {
+                        color = 'rgba(59, 130, 246, 0.8)';  // R蓝色 80%
+                    } else if (pivot.label.startsWith('S')) {
+                        color = 'rgba(239, 68, 68, 0.8)';   // S红色 80%
+                    }
+                    
+                    const showLegend = idx === 0;
+                    
+                    chart.data.datasets.push({
+                        label: showLegend ? legendPrefix : '',
+                        pivotType: pivot.label,
+                        pivotLabel: `${legendPrefix}-${pivot.label}`,
+                        isPivot: true,
+                        pivotPeriod: 'monthly',
+                        data: lineData,
+                        borderColor: color,
+                        borderWidth: 3,           // 加粗 3px，实线
+                        pointRadius: 0,           // 不显示点
+                        pointHoverRadius: 0,      // hover也不显示
+                        pointHitRadius: 0,        // 不响应鼠标点击
+                        fill: false,
+                        tension: 0,
+                        order: 2                  // 底层
+                    });
+                });
+            });
+        }
+
+        // 为图表添加周度枢轴点
+        function addWeeklyPivots(index, chart, chartData) {
+            if (!index.weeklyPivots || index.weeklyPivots.length === 0) return;
+            
+            let chartStartTime = null;
+            let chartEndTime = null;
+            if (chartData && chartData.length > 0) {
+                chartStartTime = chartData[0].x.getTime();
+                chartEndTime = chartData[chartData.length - 1].x.getTime();
+            }
+            
+            const weeklyGroups = {};
+            index.weeklyPivots.forEach(pivot => {
+                const weekKey = `${pivot.date}_${pivot.endDate}`;
+                if (!weeklyGroups[weekKey]) {
+                    weeklyGroups[weekKey] = [];
+                }
+                weeklyGroups[weekKey].push(pivot);
+            });
+            
+            const weekNumbers = {};
+            Object.keys(weeklyGroups).forEach(weekKey => {
+                const [dateStr] = weekKey.split('_');
+                const [year, month] = dateStr.split('-').slice(0, 2);
+                const monthKey = `${year}-${month}`;
+                
+                if (!weekNumbers[monthKey]) {
+                    weekNumbers[monthKey] = [];
+                }
+                if (!weekNumbers[monthKey].includes(weekKey)) {
+                    weekNumbers[monthKey].push(weekKey);
+                }
+            });
+            
+            Object.keys(weeklyGroups).forEach(weekKey => {
+                const pivots = weeklyGroups[weekKey];
+                const [dateStr, endDateStr] = weekKey.split('_');
+                const { startDate, endDate } = getWeeklyPivotTimeRange(dateStr, endDateStr);
+                
+                // 注释掉时间范围检查，始终显示配置的枢轴点
+                // if (chartStartTime && chartEndTime) {
+                //     if (!isTimeRangeVisible(startDate.getTime(), endDate.getTime(), chartStartTime, chartEndTime)) {
+                //         return;
+                //     }
+                // }
+                
+                const [year, month] = dateStr.split('-').slice(0, 2);
+                const monthKey = `${year}-${month}`;
+                const weekNumber = weekNumbers[monthKey].indexOf(weekKey) + 1;
+                const legendPrefix = `M${month}W${weekNumber}`;
+                
+                pivots.forEach((pivot, idx) => {
+                    const lineData = createPivotLine(startDate, endDate, pivot.value);
+                    
+                    // 周度枢轴点使用较深色系
+                    let color = 'rgba(251, 191, 36, 0.7)';  // P点黄色
+                    if (pivot.label.startsWith('R')) {
+                        color = 'rgba(96, 165, 250, 0.7)';  // R蓝色
+                    } else if (pivot.label.startsWith('S')) {
+                        color = 'rgba(248, 113, 113, 0.7)'; // S红色
+                    }
+                    
+                    const showLegend = idx === 0;
+                    
+                    chart.data.datasets.push({
+                        label: showLegend ? legendPrefix : '',
+                        pivotType: pivot.label,
+                        pivotLabel: `${legendPrefix}-${pivot.label}`,
+                        isPivot: true,
+                        pivotPeriod: 'weekly',
+                        data: lineData,
+                        borderColor: color,
+                        borderWidth: 2,           // 中等粗
+                        borderDash: [5, 3],       // 短虚线
+                        pointRadius: 0,           // 不显示点
+                        pointHoverRadius: 0,      // hover也不显示
+                        pointHitRadius: 0,        // 不响应鼠标点击
+                        fill: false,
+                        tension: 0,
+                        order: 1                  // 中层
+                    });
+                });
+                
+                // 添加周度枢轴点之间的背景渐变
+                const pivotOrder = { 'R3': 0, 'R2': 1, 'R1': 2, 'P': 3, 'S1': 4, 'S2': 5, 'S3': 6 };
+                const sortedPivots = [...pivots].sort((a, b) => pivotOrder[a.label] - pivotOrder[b.label]);
+                
+                const P = sortedPivots.find(p => p.label === 'P');
+                if (P) {
+                    // P→R1→R2→R3 蓝色渐变（从浅到深）
+                    for (let i = 3; i > 0; i--) {
+                        const current = sortedPivots[i];      // R1, R2, R3
+                        const next = sortedPivots[i - 1];     // P, R1, R2
+                        if (!current || !next) continue;
+                        
+                        // 透明度从0.03到0.09，逐级变深
+                        const opacity = 0.03 + (4 - i) * 0.03;
+                        
+                        chart.data.datasets.push({
+                            label: '',  // 背景不显示图例
+                            data: createPivotLine(startDate, endDate, current.value),
+                            backgroundColor: `rgba(59, 130, 246, ${opacity})`,  // 蓝色
+                            borderWidth: 0,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            pointHitRadius: 0,
+                            fill: {
+                                target: {
+                                    value: next.value
+                                },
+                                above: `rgba(59, 130, 246, ${opacity})`
+                            },
+                            order: 3,  // 最底层
+                            isPivot: false  // 标记为非枢轴点，tooltip不显示
+                        });
+                    }
+                    
+                    // P→S1→S2→S3 红色渐变（从浅到深）
+                    for (let i = 3; i < 6; i++) {
+                        const current = sortedPivots[i];      // P, S1, S2
+                        const next = sortedPivots[i + 1];     // S1, S2, S3
+                        if (!current || !next) continue;
+                        
+                        // 透明度从0.03到0.09，逐级变深
+                        const opacity = 0.03 + (i - 3) * 0.03;
+                        
+                        chart.data.datasets.push({
+                            label: '',  // 背景不显示图例
+                            data: createPivotLine(startDate, endDate, current.value),
+                            backgroundColor: `rgba(239, 68, 68, ${opacity})`,  // 红色
+                            borderWidth: 0,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            pointHitRadius: 0,
+                            fill: {
+                                target: {
+                                    value: next.value
+                                },
+                                below: `rgba(239, 68, 68, ${opacity})`
+                            },
+                            order: 3,  // 最底层
+                            isPivot: false  // 标记为非枢轴点，tooltip不显示
+                        });
+                    }
+                }
+            });
+        }
+
+        // ==================== 结束枢轴点功能 ====================
+
+        // 更新图表（包含枢轴点）
+        function updateChart(index) {
+            const chart = charts[index.id];
+            if (!chart) return;
+
+            const data = chartsData[index.id];
+            chart.data.datasets[0].data = data;
+            
+            // 重置点的样式为默认值
+            chart.data.datasets[0].pointRadius = 0;
+            chart.data.datasets[0].pointHoverRadius = 5;
+            chart.data.datasets[0].pointBackgroundColor = index.color;
+            chart.data.datasets[0].pointBorderColor = '#ffffff';
+            chart.data.datasets[0].pointBorderWidth = 2;
+            chart.data.datasets[0].order = 0;  // 指数主线在最顶层
+            chart.data.datasets[0].borderWidth = 2.5;  // 主线稍粗
+
+            // 只保留主数据集
+            chart.data.datasets = chart.data.datasets.filter(ds => ds.label === index.name);
+            
+            // 添加月度枢轴点
+            addMonthlyPivots(index, chart, data);
+            
+            // 添加周度枢轴点
+            addWeeklyPivots(index, chart, data);
+
+            chart.update('none');
+        }
+
+        // ==================== 以下为旧的禁用代码（已废弃，不影响现有功能） ====================
+        
+        // 旧的枢轴点生成函数（已禁用，新实现见上方）
+        function generatePivotDataPoints_DISABLED(index, data, startDateStr, endDateStr, pivotValue) {
+            const points = [];
+
+            // 解析开始和结束日期（格式：YYYY-MM-DD，用户数据是中国时间）
+            const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+            const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+
+            // 创建日期对象（中国时间）
+            const startDate = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+            const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+
+            // 如果有市场数据，使用市场数据的时间点
+            if (data && data.length > 0) {
+                // 筛选出在枢轴点日期范围内的市场数据点
+                const filteredData = data.filter(d => {
+                    const pointTime = d.x.getTime();
+                    return pointTime >= startDate.getTime() && pointTime <= endDate.getTime();
+                });
+
+                // 为每个市场数据点创建枢轴点
+                filteredData.forEach(d => {
+                    points.push({
+                        x: new Date(d.x),
+                        y: pivotValue
+                    });
+                });
+
+                // 如果过滤后没有数据点，生成开始和结束两个点
+                if (points.length === 0) {
+                    points.push({ x: new Date(startDate), y: pivotValue });
+                    points.push({ x: new Date(endDate), y: pivotValue });
+                }
+            } else {
+                // 没有市场数据时，只生成开始和结束两个点
+                points.push({ x: new Date(startDate), y: pivotValue });
+                points.push({ x: new Date(endDate), y: pivotValue });
+            }
+
+            return points;
+        }
+
+        // 添加枢轴点到图表（已禁用）
+        function addPivotsToChart_DISABLED(index, chart, data) {
+            const monthlyPivots = index.monthlyPivotsData;
+            const weeklyPivots = index.weeklyPivotsData;
+
+            // 月度枢轴点
+            const monthlyGroups = {};
+            monthlyPivots.forEach(pivot => {
+                const monthKey = pivot.date;
+                if (!monthlyGroups[monthKey]) monthlyGroups[monthKey] = [];
+                monthlyGroups[monthKey].push(pivot);
+            });
+
+            Object.keys(monthlyGroups).forEach(monthKey => {
+                const group = monthlyGroups[monthKey];
+                const monthLabel = monthKey.split('-')[1];
+                const legendLabel = `M${monthLabel}`;
+
+                group.forEach((pivot) => {
+                    const [year, month] = pivot.date.split('-').map(Number);
+                    // 月度枢轴点：从当月第一天到最后一天
+                    const monthStartStr = `${year}-${String(month).padStart(2, '0')}-01`;
+                    const lastDay = new Date(year, month, 0).getDate();
+                    const monthEndStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+                    let borderColor = '#f59e0b';
+                    if (pivot.label && pivot.label.startsWith('S')) {
+                        borderColor = '#ef4444';
+                    } else if (pivot.label && pivot.label.startsWith('R')) {
+                        borderColor = '#3b82f6';
+                    } else if (pivot.label === 'P') {
+                        borderColor = '#f59e0b';
+                    }
+
+                    chart.data.datasets.push({
+                        label: legendLabel,
+                        pivotType: pivot.label,
+                        data: generatePivotDataPoints(index, data, monthStartStr, monthEndStr, pivot.value),
+                        borderColor: borderColor,
+                        borderWidth: 2,
+                        borderDash: [10, 5],
+                        pointRadius: 0,
+                        fill: false,
+                        spanGaps: true
+                    });
+                });
+            });
+
+            // 周度枢轴点
+            const weeklyGroups = {};
+            const weekNumberMap = {};
+
+            weeklyPivots.forEach(pivot => {
+                const weekKey = pivot.date;
+                if (!weeklyGroups[weekKey]) weeklyGroups[weekKey] = [];
+                weeklyGroups[weekKey].push(pivot);
+
+                const [year, month, day] = pivot.date.split('-').map(Number);
+                const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+                if (!weekNumberMap[monthKey]) weekNumberMap[monthKey] = [];
+                if (!weekNumberMap[monthKey].includes(pivot.date)) {
+                    weekNumberMap[monthKey].push(pivot.date);
+                }
+            });
+
+            Object.keys(weeklyGroups).forEach(weekKey => {
+                const group = weeklyGroups[weekKey];
+                const pivot = group[0];
+                const [year, month, day] = pivot.date.split('-').map(Number);
+                const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+                const weekNumber = weekNumberMap[monthKey].indexOf(pivot.date) + 1;
+                const legendLabel = `M${month}W${weekNumber}`;
+
+                group.forEach((pivot) => {
+                    // 周度枢轴点：使用配置的开始和结束日期
+                    const startDateStr = pivot.date;
+                    const endDateStr = pivot.endDate || pivot.date;
+
+                    let borderColor = '#06b6d4';
+                    if (pivot.label && pivot.label.startsWith('S')) {
+                        borderColor = '#f87171';
+                    } else if (pivot.label && pivot.label.startsWith('R')) {
+                        borderColor = '#60a5fa';
+                    } else if (pivot.label === 'P') {
+                        borderColor = '#fbbf24';
+                    }
+
+                    chart.data.datasets.push({
+                        label: legendLabel,
+                        pivotType: pivot.label,
+                        data: generatePivotDataPoints(index, data, startDateStr, endDateStr, pivot.value),
+                        borderColor: borderColor,
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false,
+                        spanGaps: true
+                    });
+                });
+
+                // 添加背景渐变
+                const order = { 'R3': 0, 'R2': 1, 'R1': 2, 'P': 3, 'S1': 4, 'S2': 5, 'S3': 6 };
+                group.sort((a, b) => order[a.label] - order[b.label]);
+
+                const P = group.find(p => p.label === 'P');
+                if (!P) return;
+
+                // 使用P的日期范围作为背景渐变的范围
+                const startDateStr = P.date;
+                const endDateStr = P.endDate || P.date;
+
+                // P→R3 蓝色渐变 (增强对比度)
+                for (let i = 3; i > 0; i--) {
+                    const current = group[i];
+                    const next = group[i - 1];
+                    if (!current || !next) continue;
+
+                    // 从 0.08 到 0.20，增加区别度
+                    const opacity = 0.06 + (4 - i) * 0.06;
+
+                    chart.data.datasets.push({
+                        label: `周度背景 ${current.label}-${next.label}`,
+                        data: generatePivotDataPoints(index, data, startDateStr, endDateStr, current.value),
+                        backgroundColor: `rgba(59, 130, 246, ${opacity})`,
+                        borderWidth: 0,
+                        pointRadius: 0,
+                        fill: {
+                            target: { value: next.value },
+                            above: `rgba(59, 130, 246, ${opacity})`
+                        },
+                        spanGaps: true,
+                        order: 10
+                    });
+                }
+
+                // P→S3 红色渐变 (增强对比度)
+                for (let i = 3; i < 6; i++) {
+                    const current = group[i];
+                    const next = group[i + 1];
+                    if (!current || !next) continue;
+
+                    // 从 0.08 到 0.20，增加区别度
+                    const opacity = 0.06 + (i - 2) * 0.06;
+
+                    chart.data.datasets.push({
+                        label: `周度背景 ${current.label}-${next.label}`,
+                        data: generatePivotDataPoints(index, data, startDateStr, endDateStr, current.value),
+                        backgroundColor: `rgba(239, 68, 68, ${opacity})`,
+                        borderWidth: 0,
+                        pointRadius: 0,
+                        fill: {
+                            target: { value: next.value },
+                            below: `rgba(239, 68, 68, ${opacity})`
+                        },
+                        spanGaps: true,
+                        order: 10
+                    });
+                }
+            });
+        }
+
+        // 动态调整Y轴（已禁用）
+        function adjustYAxis_DISABLED(index, chart, data) {
+            if (index.showPivots && (index.monthlyPivotsData.length > 0 || index.weeklyPivotsData.length > 0)) {
+                let allYValues = data.map(d => d.y);
+                index.monthlyPivotsData.forEach(pivot => allYValues.push(pivot.value));
+                index.weeklyPivotsData.forEach(pivot => allYValues.push(pivot.value));
+
+                const minY = Math.min(...allYValues);
+                const maxY = Math.max(...allYValues);
+                const range = maxY - minY;
+
+                chart.options.scales.y.min = minY - range * 0.1;
+                chart.options.scales.y.max = maxY + range * 0.1;
+            }
+        }
+
+        // 更新指数信息
+        function updateInfo(index) {
+            const data = chartsData[index.id];
+            if (!data || data.length === 0) {
+                console.warn(`⚠️ ${index.name}: 无数据无法更新信息`);
+                return;
+            }
+
+            // 获取最后一个有效数据点
+            let currentValue = null;
+            let previousValue = null;
+
+            // 从后往前找最后一个有效值
+            for (let i = data.length - 1; i >= 0; i--) {
+                if (data[i] && data[i].y !== null && !isNaN(data[i].y)) {
+                    currentValue = data[i].y;
+                    // 找前一个有效值
+                    for (let j = i - 1; j >= 0; j--) {
+                        if (data[j] && data[j].y !== null && !isNaN(data[j].y)) {
+                            previousValue = data[j].y;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if (currentValue === null) {
+                console.warn(`⚠️ ${index.name}: 找不到有效数据点`);
+                document.getElementById(`${index.id}-price`).textContent = '--';
+                document.getElementById(`${index.id}-change`).textContent = '--';
+                return;
+            }
+
+            // 如果没有前一个值，使用当前值（涨跌为0）
+            if (previousValue === null) {
+                previousValue = currentValue;
+            }
+
+            const change = currentValue - previousValue;
+            const changePercent = previousValue !== 0 ? (change / previousValue * 100).toFixed(2) : '0.00';
+
+            const priceElement = document.getElementById(`${index.id}-price`);
+            priceElement.textContent = currentValue.toFixed(2);
+            priceElement.style.color = '#1e293b'; // 恢复正常颜色
+
+            const changeElement = document.getElementById(`${index.id}-change`);
+            const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent}%)`;
+            changeElement.textContent = changeText;
+            changeElement.className = change >= 0 ? 'change positive' : 'change negative';
+        }
+
+        // 设置单个指数时间范围
+        function setIndexTimeRange(indexId, range, customStart, customEnd) {
+            const chart = charts[indexId];
+            const data = chartsData[indexId];
+            if (!chart) return;
+
+            // 使用当前实时时间作为结束时间
+            const now = new Date();
+            let startDate, endDate, timeUnit;
+
+            if (customStart && customEnd) {
+                // 自定义时间范围
+                startDate = new Date(customStart);
+                endDate = new Date(customEnd);
+
+                // 根据时间跨度自动选择合适的时间单位
+                const diffDays = (endDate - startDate) / (24 * 60 * 60 * 1000);
+                if (diffDays <= 2) {
+                    timeUnit = 'hour';
+                } else if (diffDays <= 60) {
+                    timeUnit = 'day';
+                } else {
+                    timeUnit = 'week';
+                }
+            } else {
+                // 预设时间范围
+                endDate = now;
+
+                switch(range) {
+                    case '1D':
+                        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                        timeUnit = 'hour';
+                        break;
+                    case '1W':
+                        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                        timeUnit = 'day';
+                        break;
+                    case '1M':
+                        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                        timeUnit = 'day';
+                        break;
+                    case '3M':
+                        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+                        timeUnit = 'week';
+                        break;
+                }
+            }
+
+            chart.options.scales.x.time.unit = timeUnit;
+            chart.options.scales.x.min = startDate;
+            chart.options.scales.x.max = endDate;
+            chart.update();
+        }
+
+        // 设置所有指数时间范围
+        function setAllTimeRange(range) {
+            // 获取切换前后的interval
+            const oldInterval = getDataInterval(currentTimeRange);
+            const newInterval = getDataInterval(range);
+            
+            // 更新全局时间范围
+            currentTimeRange = range;
+            
+            // 如果interval发生变化，需要重新获取数据
+            const needRefresh = oldInterval !== newInterval;
+            
+            if (needRefresh) {
+                console.log(`🔄 时间范围切换: ${range}, 数据粒度从 ${oldInterval} 变为 ${newInterval}，重新获取数据...`);
+                indices.forEach((index, idx) => {
+                    // 先调整图表显示范围
+                    setIndexTimeRange(index.id, range);
+                    // 延迟获取数据，避免同时发起过多请求
+                    setTimeout(() => {
+                        fetchRealData(index, true); // 强制刷新
+                    }, idx * 200);
+                });
+            } else {
+                // interval没变化，只调整显示范围
+                indices.forEach(index => {
+                    setIndexTimeRange(index.id, range);
+                });
+            }
+        }
+
+        // 打开自定义时间筛选对话框
+        function openCustomTimeFilter() {
+            const startDate = prompt('请输入开始时间（格式：YYYY-MM-DD 或 YYYY-MM-DD HH:mm）', '2025-01-01');
+            if (!startDate) return;
+
+            const endDate = prompt('请输入结束时间（格式：YYYY-MM-DD 或 YYYY-MM-DD HH:mm）\n支持未来时间', '2025-12-01');
+            if (!endDate) return;
+
+            try {
+                // 验证日期格式
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+
+                if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                    alert('日期格式错误，请使用 YYYY-MM-DD 或 YYYY-MM-DD HH:mm 格式');
+                    return;
+                }
+
+                if (start >= end) {
+                    alert('开始时间必须早于结束时间');
+                    return;
+                }
+
+                // 应用自定义时间范围到所有图表
+                indices.forEach(index => {
+                    setIndexTimeRange(index.id, null, startDate, endDate);
+                });
+
+                console.log(`✅ 已应用自定义时间范围: ${startDate} 至 ${endDate}`);
+            } catch (error) {
+                alert(`时间设置错误: ${error.message}`);
+            }
+        }
+
+        // 重置单个指数缩放
+        function resetIndexZoom(indexId) {
+            const chart = charts[indexId];
+            if (chart) {
+                chart.resetZoom();
+            }
+        }
+
+        // 重置所有指数缩放
+        function resetAllZoom() {
+            indices.forEach(index => {
+                resetIndexZoom(index.id);
+            });
+        }
+
+        // 切换枢轴点显示（已禁用）
+        // 旧的切换枢轴点显示函数（已禁用）
+        function toggleIndexPivots_DISABLED(indexId) {
+            const index = indices.find(i => i.id === indexId);
+            index.showPivots = !index.showPivots;
+            updateChart(index);
+        }
+        
+        // ==================== 结束旧代码 ====================
+
+        // 打开枢轴点模态框
+        function openPivotModal(indexId, type) {
+            const modal = document.getElementById(`modal-${indexId}-${type}`);
+            modal.classList.add('active');
+            updatePivotList(indexId, type);
+        }
+
+        // 关闭枢轴点模态框
+        function closePivotModal(indexId, type) {
+            const modal = document.getElementById(`modal-${indexId}-${type}`);
+            modal.classList.remove('active');
+        }
+
+        // 保存枢轴点
+        function savePivot(indexId, type) {
+            const index = indices.find(i => i.id === indexId);
+            const dateInput = document.getElementById(`${indexId}-${type}-date`);
+            const valueInput = document.getElementById(`${indexId}-${type}-value`);
+
+            const date = dateInput.value;
+            const value = parseFloat(valueInput.value);
+
+            if (!date || isNaN(value)) {
+                alert('请填写完整的日期和数值');
+                return;
+            }
+
+            const pivotArray = type === 'monthly' ? index.monthlyPivotsData : index.weeklyPivotsData;
+            const storageKey = `pivots_${indexId}_${type}`;
+
+            const newPivot = { date: date, value: value };
+
+            // 如果是周度，还需要结束日期
+            if (type === 'weekly') {
+                const endDateInput = document.getElementById(`${indexId}-weekly-enddate`);
+                if (endDateInput && endDateInput.value) {
+                    newPivot.endDate = endDateInput.value;
+                }
+            }
+
+            pivotArray.push(newPivot);
+            pivotArray.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            localStorage.setItem(storageKey, JSON.stringify(pivotArray));
+
+            dateInput.value = '';
+            valueInput.value = '';
+            if (type === 'weekly') {
+                const endDateInput = document.getElementById(`${indexId}-weekly-enddate`);
+                if (endDateInput) endDateInput.value = '';
+            }
+
+            updatePivotList(indexId, type);
+            updateChart(index);
+            updateInfo(index);
+
+            alert('枢轴点已保存');
+        }
+
+        // 快速添加完整枢轴点
+        function quickAddPivots(indexId, type) {
+            const index = indices.find(i => i.id === indexId);
+
+            let date, endDate;
+            if (type === 'monthly') {
+                date = prompt('请输入月份（格式：2025-11）：', '2025-11');
+            } else {
+                date = prompt('请输入开始日期（格式：2025-11-17）：', '2025-11-17');
+                if (date) {
+                    endDate = prompt('请输入结束日期（格式：2025-11-23）：', '2025-11-23');
+                }
+            }
+
+            if (!date) return;
+            if (type === 'weekly' && !endDate) return;
+
+            const r3 = parseFloat(prompt('请输入 R3（阻力位3）：', '28599.4'));
+            const r2 = parseFloat(prompt('请输入 R2（阻力位2）：', '27390.7'));
+            const r1 = parseFloat(prompt('请输入 R1（阻力位1）：', '26624.4'));
+            const p = parseFloat(prompt('请输入 P（主枢轴点）：', '25415.8'));
+            const s1 = parseFloat(prompt('请输入 S1（支撑位1）：', '24649.5'));
+            const s2 = parseFloat(prompt('请输入 S2（支撑位2）：', '23440.8'));
+            const s3 = parseFloat(prompt('请输入 S3（支撑位3）：', '22674.5'));
+
+            if (isNaN(r3) || isNaN(r2) || isNaN(r1) || isNaN(p) || isNaN(s1) || isNaN(s2) || isNaN(s3)) {
+                alert('输入的数据不完整或格式错误！');
+                return;
+            }
+
+            const pivotArray = type === 'monthly' ? index.monthlyPivotsData : index.weeklyPivotsData;
+            const storageKey = `pivots_${indexId}_${type}`;
+
+            // 清除该日期的旧数据
+            const filteredArray = pivotArray.filter(pivot => pivot.date !== date);
+
+            const newPivots = [
+                { date: date, value: r3, label: 'R3' },
+                { date: date, value: r2, label: 'R2' },
+                { date: date, value: r1, label: 'R1' },
+                { date: date, value: p, label: 'P' },
+                { date: date, value: s1, label: 'S1' },
+                { date: date, value: s2, label: 'S2' },
+                { date: date, value: s3, label: 'S3' }
+            ];
+
+            // 如果是周度，添加结束日期
+            if (type === 'weekly' && endDate) {
+                newPivots.forEach(pivot => {
+                    pivot.endDate = endDate;
+                });
+            }
+
+            filteredArray.push(...newPivots);
+            filteredArray.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            if (type === 'monthly') {
+                index.monthlyPivotsData = filteredArray;
+            } else {
+                index.weeklyPivotsData = filteredArray;
+            }
+
+            localStorage.setItem(storageKey, JSON.stringify(filteredArray));
+
+            updateChart(index);
+            updateInfo(index);
+            closePivotModal(indexId, type);
+
+            alert(`已成功添加 ${date} ${type === 'monthly' ? '月度' : '周度'}枢轴点的7个数据！`);
+        }
+
+        // 更新枢轴点列表
+        function updatePivotList(indexId, type) {
+            const index = indices.find(i => i.id === indexId);
+            const pivotArray = type === 'monthly' ? index.monthlyPivotsData : index.weeklyPivotsData;
+            const listElement = document.getElementById(`${indexId}-${type}-list`);
+
+            if (pivotArray.length === 0) {
+                listElement.innerHTML = '<p style="color: #94a3b8;">暂无数据</p>';
+                return;
+            }
+
+            // 按日期分组显示
+            const grouped = {};
+            pivotArray.forEach((pivot, idx) => {
+                const key = pivot.date;
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push({ ...pivot, originalIndex: idx });
+            });
+
+            listElement.innerHTML = Object.keys(grouped).map(dateKey => {
+                const group = grouped[dateKey];
+                const pivotLabels = group.map(p => `${p.label}: ${p.value.toFixed(2)}`).join(', ');
+                return `
+                    <div style="padding: 10px; background: #f1f5f9; margin-bottom: 5px; border-radius: 6px;">
+                        <strong>${dateKey}</strong>${group[0].endDate ? ` ~ ${group[0].endDate}` : ''}<br>
+                        <span style="font-size: 0.9em;">${pivotLabels}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 更新最后更新时间
+        function updateLastUpdateTime() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent =
+                now.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+        }
+
+        // 初始化CORS代理设置
+        function initCorsProxy() {
+            // 从localStorage读取设置
+            const savedSetting = localStorage.getItem('useCorsProxy');
+            window.useCorsProxy = savedSetting === 'true';
+
+            // 更新按钮文本
+            const buttonText = document.getElementById('corsProxyText');
+            if (buttonText) {
+                buttonText.textContent = window.useCorsProxy ? '关闭CORS代理' : '启用CORS代理';
+            }
+
+            console.log(`🔧 CORS代理设置: ${window.useCorsProxy ? '已启用' : '已关闭'}`);
+        }
+
+        // 切换CORS代理
+        function toggleCorsProxy() {
+            window.useCorsProxy = !window.useCorsProxy;
+
+            // 保存到localStorage
+            localStorage.setItem('useCorsProxy', window.useCorsProxy.toString());
+
+            const buttonText = document.getElementById('corsProxyText');
+
+            if (window.useCorsProxy) {
+                buttonText.textContent = '关闭CORS代理';
+                console.log('✅ CORS代理已启用');
+                alert('CORS代理已启用，页面将重新加载数据');
+            } else {
+                buttonText.textContent = '启用CORS代理';
+                console.log('⚠️ CORS代理已关闭');
+                alert('CORS代理已关闭，页面将重新加载数据');
+            }
+
+            // 重新加载所有数据
+            location.reload();
+        }
+
+        // 切换标签页
+        function switchTab(tab) {
+            currentTab = tab;
+
+            // 更新标签页按钮状态
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 筛选显示指数卡片
+            indices.forEach(index => {
+                const card = document.getElementById(`card-${index.id}`);
+                if (!card) return;
+
+                if (tab === 'all') {
+                    card.style.display = 'block';
+                } else if (tab === 'hk' && index.category === 'hk') {
+                    card.style.display = 'block';
+                } else if (tab === 'us' && index.category === 'us') {
+                    card.style.display = 'block';
+                } else if (tab === 'cn' && index.category === 'cn') {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('load', function() {
+            initCorsProxy(); // 初始化CORS代理设置
+            initPage();
+        });
+    </script>
+</body>
+</html>
