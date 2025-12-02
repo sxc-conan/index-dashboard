@@ -40,3 +40,4 @@ data/*.json
 .vercel
 .vercel.json.backup
 
+.env*.local

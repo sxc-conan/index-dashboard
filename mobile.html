@@ -1,0 +1,1317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>📊 指数监控 - 移动版</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        /* 顶部固定头部 */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .header h1 {
+            font-size: 1.3em;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header .update-time {
+            font-size: 0.75em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        .refresh-indicator {
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 999;
+            font-size: 0.9em;
+        }
+
+        .refresh-indicator.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+
+        /* 快速筛选栏 */
+        .quick-filters {
+            position: sticky;
+            top: 75px;
+            z-index: 999;
+            background: white;
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .quick-filters::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            margin-right: 8px;
+            background: #f1f5f9;
+            color: #64748b;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        /* 指数卡片 */
+        .indices-container {
+            padding: 10px;
+        }
+
+        .index-card {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+            transition: transform 0.2s ease;
+        }
+
+        .index-card.hidden {
+            display: none;
+        }
+
+        .index-card:active {
+            transform: scale(0.98);
+        }
+
+        .card-header {
+            padding: 15px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .card-title {
+            font-size: 1em;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .price-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .current-price {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .price-change {
+            font-size: 0.9em;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .price-change.positive {
+            color: #10b981;
+            background: #d1fae5;
+        }
+
+        .price-change.negative {
+            color: #ef4444;
+            background: #fee2e2;
+        }
+
+        .price-change.neutral {
+            color: #64748b;
+            background: #f1f5f9;
+        }
+
+        .chart-container {
+            padding: 10px;
+            height: 200px;
+            position: relative;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: #94a3b8;
+        }
+
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #ef4444;
+            font-size: 0.9em;
+        }
+
+        /* 底部操作栏 */
+        .bottom-actions {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            padding: 10px;
+            display: flex;
+            gap: 8px;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+            z-index: 1000;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .action-btn.secondary {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 时间范围选择器 */
+        .time-selector {
+            display: none;
+            position: fixed;
+            bottom: 70px;
+            left: 10px;
+            right: 10px;
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            z-index: 999;
+            animation: slideUp 0.3s ease;
+        }
+
+        .time-selector.show {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .time-selector h3 {
+            font-size: 1em;
+            margin-bottom: 12px;
+            color: #1e293b;
+        }
+
+        .time-options {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .time-btn {
+            padding: 10px;
+            background: #f1f5f9;
+            color: #64748b;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .time-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .spinner {
+            border: 3px solid #f1f5f9;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 为底部操作栏留出空间 */
+        .indices-container {
+            padding-bottom: 80px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 头部 -->
+    <div class="header">
+        <h1>📊 指数监控</h1>
+        <div class="update-time" id="updateTime">最后更新: --</div>
+    </div>
+
+    <!-- 刷新提示 -->
+    <div class="refresh-indicator" id="refreshIndicator">
+        🔄 正在刷新数据...
+    </div>
+
+    <!-- 快速筛选 -->
+    <div class="quick-filters">
+        <button class="filter-btn active" data-market="all">全部</button>
+        <button class="filter-btn" data-market="hk">港股</button>
+        <button class="filter-btn" data-market="us">美股</button>
+        <button class="filter-btn" data-market="cn">大A</button>
+        <button class="filter-btn" data-market="pm">贵金属</button>
+    </div>
+
+    <!-- 指数列表 -->
+    <div class="indices-container" id="indicesContainer">
+        <div class="loading">
+            <div class="spinner"></div>
+            <div>加载中...</div>
+        </div>
+    </div>
+
+    <!-- 时间选择器 -->
+    <div class="time-selector" id="timeSelector">
+        <h3>⏱️ 选择时间范围</h3>
+        <div class="time-options">
+            <button class="time-btn active" data-range="1d">1天</button>
+            <button class="time-btn" data-range="1w">1周</button>
+            <button class="time-btn" data-range="1m">1月</button>
+            <button class="time-btn" data-range="3m">3月</button>
+        </div>
+    </div>
+
+    <!-- 底部操作栏 -->
+    <div class="bottom-actions">
+        <button class="action-btn secondary" id="timeRangeBtn">⏱️ 时间</button>
+        <button class="action-btn primary" id="refreshBtn">🔄 刷新</button>
+        <button class="action-btn secondary" id="corsBtn">🌐 代理</button>
+    </div>
+
+    <script>
+        // 指数配置（含真实枢轴点数据）
+        const INDICES = [
+            { 
+                symbol: 'NDX', 
+                name: '纳斯达克100', 
+                market: 'us', 
+                yahoo: '^NDX', 
+                sina: null,
+                monthlyPivots: [
+                    { date: '2025-11', value: 28599.4, label: 'R3' },
+                    { date: '2025-11', value: 27390.7, label: 'R2' },
+                    { date: '2025-11', value: 26624.4, label: 'R1' },
+                    { date: '2025-11', value: 25415.8, label: 'P' },
+                    { date: '2025-11', value: 24649.5, label: 'S1' },
+                    { date: '2025-11', value: 23440.8, label: 'S2' },
+                    { date: '2025-11', value: 22674.5, label: 'S3' },
+                    { date: '2025-12', value: 28706.0, label: 'R3' },
+                    { date: '2025-12', value: 27419.4, label: 'R2' },
+                    { date: '2025-12', value: 26427.2, label: 'R1' },
+                    { date: '2025-12', value: 25140.6, label: 'P' },
+                    { date: '2025-12', value: 24148.3, label: 'S1' },
+                    { date: '2025-12', value: 22861.8, label: 'S2' },
+                    { date: '2025-12', value: 21869.5, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 26816.0, label: 'R3' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 26125.9, label: 'R2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 25835.9, label: 'R1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 25145.8, label: 'P' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 24855.8, label: 'S1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 24165.7, label: 'S2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 23875.7, label: 'S3' }
+                ]
+            },
+            { 
+                symbol: 'SPX', 
+                name: '标普500', 
+                market: 'us', 
+                yahoo: '^GSPC', 
+                sina: null,
+                monthlyPivots: [
+                    { date: '2025-11', value: 7359.7, label: 'R3' },
+                    { date: '2025-11', value: 7140.0, label: 'R2' },
+                    { date: '2025-11', value: 6990.1, label: 'R1' },
+                    { date: '2025-11', value: 6770.4, label: 'P' },
+                    { date: '2025-11', value: 6620.5, label: 'S1' },
+                    { date: '2025-11', value: 6400.9, label: 'S2' },
+                    { date: '2025-11', value: 6251.0, label: 'S3' },
+                    { date: '2025-12', value: 7340.6, label: 'R3' },
+                    { date: '2025-12', value: 7111.5, label: 'R2' },
+                    { date: '2025-12', value: 6980.2, label: 'R1' },
+                    { date: '2025-12', value: 6751.1, label: 'P' },
+                    { date: '2025-12', value: 6619.8, label: 'S1' },
+                    { date: '2025-12', value: 6390.7, label: 'S2' },
+                    { date: '2025-12', value: 6259.4, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 7143.2, label: 'R3' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 6997.0, label: 'R2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 6923.1, label: 'R1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 6776.9, label: 'P' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 6702.9, label: 'S1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 6556.7, label: 'S2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 6482.7, label: 'S3' }
+                ]
+            },
+            { 
+                symbol: 'HSI', 
+                name: '恒生指数', 
+                market: 'hk', 
+                yahoo: '^HSI', 
+                sina: 'hf_HSI',
+                monthlyPivots: [
+                    { date: '2025-11', value: 29380.4, label: 'R3' },
+                    { date: '2025-11', value: 28381.1, label: 'R2' },
+                    { date: '2025-11', value: 27143.9, label: 'R1' },
+                    { date: '2025-11', value: 26144.6, label: 'P' },
+                    { date: '2025-11', value: 24907.4, label: 'S1' },
+                    { date: '2025-11', value: 23908.1, label: 'S2' },
+                    { date: '2025-11', value: 22670.9, label: 'S3' },
+                    { date: '2025-12', value: 28982.4, label: 'R3' },
+                    { date: '2025-12', value: 28085.6, label: 'R2' },
+                    { date: '2025-12', value: 26972.3, label: 'R1' },
+                    { date: '2025-12', value: 26075.4, label: 'P' },
+                    { date: '2025-12', value: 24962.1, label: 'S1' },
+                    { date: '2025-12', value: 24065.3, label: 'S2' },
+                    { date: '2025-12', value: 22951.9, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 26974.0, label: 'R3' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 26555.1, label: 'R2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 26207.0, label: 'R1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 25788.2, label: 'P' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 25440.0, label: 'S1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 25021.2, label: 'S2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 24673.1, label: 'S3' }
+                ]
+            },
+            { 
+                symbol: 'HSTECH', 
+                name: '恒生科技', 
+                market: 'hk', 
+                yahoo: null, 
+                sina: 'hf_HSTECH',
+                monthlyPivots: [
+                    { date: '2025-11', value: 7487.5, label: 'R3' },
+                    { date: '2025-11', value: 7101.5, label: 'R2' },
+                    { date: '2025-11', value: 6504.8, label: 'R1' },
+                    { date: '2025-11', value: 6118.8, label: 'P' },
+                    { date: '2025-11', value: 5522.1, label: 'S1' },
+                    { date: '2025-11', value: 5136.1, label: 'S2' },
+                    { date: '2025-11', value: 4539.4, label: 'S3' },
+                    { date: '2025-12', value: 6626.3, label: 'R3' },
+                    { date: '2025-12', value: 6325.9, label: 'R2' },
+                    { date: '2025-12', value: 5962.5, label: 'R1' },
+                    { date: '2025-12', value: 5662.1, label: 'P' },
+                    { date: '2025-12', value: 5298.7, label: 'S1' },
+                    { date: '2025-12', value: 4998.3, label: 'S2' },
+                    { date: '2025-12', value: 4634.9, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 5985.1, label: 'R3' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 5832.3, label: 'R2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 5715.7, label: 'R1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 5562.9, label: 'P' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 5446.3, label: 'S1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 5293.5, label: 'S2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 5176.9, label: 'S3' }
+                ]
+            },
+            { 
+                symbol: 'CSI300', 
+                name: '沪深300', 
+                market: 'cn', 
+                yahoo: '000300.SS', 
+                sina: 'sh000300',
+                monthlyPivots: [
+                    { date: '2025-11', value: 5042.3, label: 'R3' },
+                    { date: '2025-11', value: 4902.1, label: 'R2' },
+                    { date: '2025-11', value: 4771.4, label: 'R1' },
+                    { date: '2025-11', value: 4631.1, label: 'P' },
+                    { date: '2025-11', value: 4500.4, label: 'S1' },
+                    { date: '2025-11', value: 4360.2, label: 'S2' },
+                    { date: '2025-11', value: 4229.5, label: 'S3' },
+                    { date: '2025-12', value: 4967.2, label: 'R3' },
+                    { date: '2025-12', value: 4837.2, label: 'R2' },
+                    { date: '2025-12', value: 4681.9, label: 'R1' },
+                    { date: '2025-12', value: 4551.9, label: 'P' },
+                    { date: '2025-12', value: 4396.6, label: 'S1' },
+                    { date: '2025-12', value: 4266.5, label: 'S2' },
+                    { date: '2025-12', value: 4111.3, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4720.7, label: 'R3' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4640.0, label: 'R2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4583.3, label: 'R1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4502.6, label: 'P' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4445.9, label: 'S1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4365.2, label: 'S2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4308.5, label: 'S3' }
+                ]
+            },
+            { 
+                symbol: 'KCB50', 
+                name: '科创50', 
+                market: 'cn', 
+                yahoo: '000688.SS', 
+                sina: 'sh000688',
+                monthlyPivots: [
+                    { date: '2025-11', value: 1780.2, label: 'R3' },
+                    { date: '2025-11', value: 1684.5, label: 'R2' },
+                    { date: '2025-11', value: 1550.0, label: 'R1' },
+                    { date: '2025-11', value: 1454.4, label: 'P' },
+                    { date: '2025-11', value: 1319.9, label: 'S1' },
+                    { date: '2025-11', value: 1224.2, label: 'S2' },
+                    { date: '2025-11', value: 1089.7, label: 'S3' },
+                    { date: '2025-12', value: 1591.5, label: 'R3' },
+                    { date: '2025-12', value: 1517.1, label: 'R2' },
+                    { date: '2025-12', value: 1422.1, label: 'R1' },
+                    { date: '2025-12', value: 1347.8, label: 'P' },
+                    { date: '2025-12', value: 1252.8, label: 'S1' },
+                    { date: '2025-12', value: 1178.5, label: 'S2' },
+                    { date: '2025-12', value: 1083.5, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 1439.2, label: 'R3' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 1395.3, label: 'R2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 1361.2, label: 'R1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 1317.4, label: 'P' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 1283.3, label: 'S1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 1239.4, label: 'S2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 1205.3, label: 'S3' }
+                ]
+            },
+            { 
+                symbol: 'XAUUSD', 
+                name: '现货黄金', 
+                market: 'pm', 
+                yahoo: 'GC=F', 
+                sina: 'hf_GC',
+                monthlyPivots: [
+                    { date: '2025-11', value: 4881.9, label: 'R3' },
+                    { date: '2025-11', value: 4639.9, label: 'R2' },
+                    { date: '2025-11', value: 4326.7, label: 'R1' },
+                    { date: '2025-11', value: 4084.7, label: 'P' },
+                    { date: '2025-11', value: 3771.5, label: 'S1' },
+                    { date: '2025-11', value: 3529.5, label: 'S2' },
+                    { date: '2025-11', value: 3216.3, label: 'S3' },
+                    { date: '2025-12', value: 4695.2, label: 'R3' },
+                    { date: '2025-12', value: 4479.1, label: 'R2' },
+                    { date: '2025-12', value: 4367.8, label: 'R1' },
+                    { date: '2025-12', value: 4151.7, label: 'P' },
+                    { date: '2025-12', value: 4040.4, label: 'S1' },
+                    { date: '2025-12', value: 3824.3, label: 'S2' },
+                    { date: '2025-12', value: 3713.0, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4560.9, label: 'R3' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4412.0, label: 'R2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4334.2, label: 'R1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4185.3, label: 'P' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 4107.5, label: 'S1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 3958.6, label: 'S2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 3880.8, label: 'S3' }
+                ]
+            },
+            { 
+                symbol: 'XAGUSD', 
+                name: '现货白银', 
+                market: 'pm', 
+                yahoo: 'SI=F', 
+                sina: 'hf_SI',
+                monthlyPivots: [
+                    { date: '2025-11', value: 61.1, label: 'R3' },
+                    { date: '2025-11', value: 57.4, label: 'R2' },
+                    { date: '2025-11', value: 52.8, label: 'R1' },
+                    { date: '2025-11', value: 49.2, label: 'P' },
+                    { date: '2025-11', value: 44.6, label: 'S1' },
+                    { date: '2025-11', value: 40.9, label: 'S2' },
+                    { date: '2025-11', value: 36.3, label: 'S3' },
+                    { date: '2025-12', value: 71.4, label: 'R3' },
+                    { date: '2025-12', value: 64.3, label: 'R2' },
+                    { date: '2025-12', value: 60.7, label: 'R1' },
+                    { date: '2025-12', value: 53.6, label: 'P' },
+                    { date: '2025-12', value: 50.0, label: 'S1' },
+                    { date: '2025-12', value: 42.9, label: 'S2' },
+                    { date: '2025-12', value: 39.3, label: 'S3' }
+                ],
+                weeklyPivots: [
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 67.6, label: 'R3' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 62.4, label: 'R2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 59.8, label: 'R1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 54.6, label: 'P' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 51.9, label: 'S1' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 46.7, label: 'S2' },
+                    { date: '2025-12-01', endDate: '2025-12-07', value: 44.0, label: 'S3' }
+                ]
+            }
+        ];
+
+        // 全局状态
+        let currentMarket = 'all';
+        let currentRange = '6d';  // 默认显示6天（前3天+后3天）
+        let useCorsProxy = false;
+        let charts = {};
+
+        // ==================== 枢轴点辅助函数 ====================
+        
+        // 生成枢轴点水平线的两个端点坐标
+        function createPivotLine(startDate, endDate, value) {
+            return [
+                { x: new Date(startDate), y: value },
+                { x: new Date(endDate), y: value }
+            ];
+        }
+
+        // 根据月份字符串（如 '2025-12'）计算该月的起止日期
+        function getMonthlyPivotTimeRange(dateStr) {
+            const [year, month] = dateStr.split('-').map(Number);
+            const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+            const lastDay = new Date(year, month, 0).getDate();
+            const endDate = new Date(year, month - 1, lastDay, 23, 59, 59, 999);
+            return { startDate, endDate };
+        }
+
+        // 获取周度枢轴点的时间范围
+        function getWeeklyPivotTimeRange(dateStr, endDateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+            const startDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+            const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+            return { startDate, endDate };
+        }
+
+        // 根据枢轴点类型返回对应颜色（月度 - 实线）
+        function getMonthlyPivotColor(label) {
+            if (label.startsWith('R')) {
+                return 'rgba(59, 130, 246, 0.8)';  // R蓝色 80%
+            } else if (label.startsWith('S')) {
+                return 'rgba(239, 68, 68, 0.8)';   // S红色 80%
+            } else {
+                return 'rgba(245, 158, 11, 0.8)';  // P点橙色 80%
+            }
+        }
+
+        // 根据枢轴点类型返回对应颜色（周度 - 虚线）
+        function getWeeklyPivotColor(label) {
+            if (label.startsWith('R')) {
+                return 'rgba(96, 165, 250, 0.7)';  // R浅蓝色
+            } else if (label.startsWith('S')) {
+                return 'rgba(248, 113, 113, 0.7)'; // S浅红色
+            } else {
+                return 'rgba(251, 191, 36, 0.7)';  // P点黄色
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeApp();
+        });
+
+        function initializeApp() {
+            setupEventListeners();
+            loadAllIndices();
+        }
+
+        // 设置事件监听
+        function setupEventListeners() {
+            // 市场筛选
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentMarket = e.target.dataset.market;
+                    filterIndices();
+                });
+            });
+
+            // 时间范围
+            document.getElementById('timeRangeBtn').addEventListener('click', () => {
+                const selector = document.getElementById('timeSelector');
+                selector.classList.toggle('show');
+            });
+
+            document.querySelectorAll('.time-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentRange = e.target.dataset.range;
+                    document.getElementById('timeSelector').classList.remove('show');
+                    loadAllIndices();
+                });
+            });
+
+            // 刷新按钮
+            document.getElementById('refreshBtn').addEventListener('click', () => {
+                showRefreshIndicator();
+                loadAllIndices();
+            });
+
+            // CORS代理按钮
+            document.getElementById('corsBtn').addEventListener('click', () => {
+                useCorsProxy = !useCorsProxy;
+                const btn = document.getElementById('corsBtn');
+                btn.textContent = useCorsProxy ? '✅ 代理' : '🌐 代理';
+                showRefreshIndicator();
+                loadAllIndices();
+            });
+
+            // 下拉刷新
+            let startY = 0;
+            let pulling = false;
+            document.addEventListener('touchstart', (e) => {
+                if (window.scrollY === 0) {
+                    startY = e.touches[0].clientY;
+                    pulling = true;
+                }
+            });
+
+            document.addEventListener('touchmove', (e) => {
+                if (!pulling) return;
+                const currentY = e.touches[0].clientY;
+                if (currentY - startY > 80) {
+                    showRefreshIndicator();
+                    loadAllIndices();
+                    pulling = false;
+                }
+            });
+
+            document.addEventListener('touchend', () => {
+                pulling = false;
+            });
+        }
+
+        // 显示刷新提示
+        function showRefreshIndicator() {
+            const indicator = document.getElementById('refreshIndicator');
+            indicator.classList.add('show');
+            setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 2000);
+        }
+
+        // 加载所有指数
+        async function loadAllIndices() {
+            const container = document.getElementById('indicesContainer');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><div>加载中...</div></div>';
+
+            const cardsHTML = INDICES.map(index => createIndexCard(index)).join('');
+            container.innerHTML = cardsHTML;
+
+            // 并行加载所有数据
+            await Promise.all(INDICES.map(index => loadIndexData(index)));
+
+            // 更新时间
+            updateTime();
+            filterIndices();
+        }
+
+        // 创建指数卡片
+        function createIndexCard(index) {
+            return `
+                <div class="index-card" data-symbol="${index.symbol}" data-market="${index.market}">
+                    <div class="card-header">
+                        <div class="card-title">${index.name} (${index.symbol})</div>
+                        <div class="price-info">
+                            <div class="current-price" id="price-${index.symbol}">--</div>
+                            <div class="price-change neutral" id="change-${index.symbol}">--</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-${index.symbol}"></canvas>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 加载指数数据
+        async function loadIndexData(index) {
+            try {
+                const data = await fetchIndexData(index);
+                if (data && data.length > 0) {
+                    updateIndexDisplay(index, data);
+                    createChart(index, data);
+                } else {
+                    showError(index.symbol);
+                }
+            } catch (error) {
+                console.error(`加载 ${index.symbol} 失败:`, error);
+                showError(index.symbol);
+            }
+        }
+
+        // 检测是否在生产环境（Vercel）
+        function isProduction() {
+            return window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        }
+
+        // 获取 API 基础 URL
+        function getApiBaseUrl() {
+            if (isProduction()) {
+                // 生产环境：使用相对路径，Vercel 会自动路由到 Serverless 函数
+                return '/api';
+            } else if (useCorsProxy) {
+                // 本地开发 + CORS 代理
+                return 'http://localhost:8903/api';
+            } else {
+                // 本地开发 + 直接请求（可能有 CORS 问题）
+                return null;
+            }
+        }
+
+        // 获取指数数据
+        async function fetchIndexData(index) {
+            const interval = getIntervalParam();
+            const apiBaseUrl = getApiBaseUrl();
+            
+            // 计算时间范围：当前时间前3天到后3天（共6天）
+            const now = Math.floor(Date.now() / 1000);
+            const threeDays = 3 * 24 * 60 * 60;
+            const period1 = now - threeDays;
+            const period2 = now + threeDays;
+            const period = threeDays * 2;  // 6天的秒数
+            
+            // 优先使用Yahoo Finance
+            if (index.yahoo) {
+                try {
+                    let url;
+                    if (apiBaseUrl) {
+                        // 使用代理 API
+                        url = `${apiBaseUrl}/yahoo?symbol=${index.yahoo}&period=${period}&interval=${interval}`;
+                    } else {
+                        // 直接请求 Yahoo Finance（可能有 CORS 问题）
+                        url = `https://query1.finance.yahoo.com/v8/finance/chart/${index.yahoo}?period1=${period1}&period2=${period2}&interval=${interval}`;
+                    }
+                    
+                    const response = await fetch(url);
+                    const json = await response.json();
+                    
+                    if (json.chart?.result?.[0]) {
+                        return parseYahooData(json.chart.result[0]);
+                    }
+                } catch (error) {
+                    console.log(`Yahoo Finance 失败，尝试新浪: ${index.symbol}`);
+                }
+            }
+
+            // 备用新浪财经
+            if (index.sina) {
+                try {
+                    let url;
+                    if (apiBaseUrl) {
+                        // 使用代理 API
+                        url = `${apiBaseUrl}/sina?symbol=${index.sina}`;
+                    } else {
+                        // 直接请求新浪财经（可能有 CORS 问题）
+                        url = `https://hq.sinajs.cn/list=${index.sina}`;
+                    }
+                    
+                    const response = await fetch(url);
+                    const text = await response.text();
+                    return parseSinaData(text);
+                } catch (error) {
+                    console.error(`新浪财经也失败: ${index.symbol}`, error);
+                }
+            }
+
+            return null;
+        }
+
+        // 解析Yahoo数据
+        function parseYahooData(result) {
+            const timestamps = result.timestamp || [];
+            const quotes = result.indicators?.quote?.[0] || {};
+            const data = [];
+
+            for (let i = 0; i < timestamps.length; i++) {
+                if (quotes.close?.[i] != null) {
+                    data.push({
+                        time: timestamps[i] * 1000,
+                        price: quotes.close[i],
+                        high: quotes.high?.[i],
+                        low: quotes.low?.[i]
+                    });
+                }
+            }
+
+            return data;
+        }
+
+        // 解析新浪数据
+        function parseSinaData(text) {
+            const match = text.match(/="([^"]+)"/);
+            if (!match) return null;
+
+            const parts = match[1].split(',');
+            const price = parseFloat(parts[0] || parts[3]);
+            
+            if (isNaN(price)) return null;
+
+            return [{
+                time: Date.now(),
+                price: price,
+                high: price,
+                low: price
+            }];
+        }
+
+        // 更新显示
+        function updateIndexDisplay(index, data) {
+            const latest = data[data.length - 1];
+            const previous = data[0];
+            
+            const priceEl = document.getElementById(`price-${index.symbol}`);
+            const changeEl = document.getElementById(`change-${index.symbol}`);
+
+            if (priceEl && changeEl) {
+                priceEl.textContent = latest.price.toFixed(2);
+                
+                const change = latest.price - previous.price;
+                const changePct = (change / previous.price * 100).toFixed(2);
+                const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct}%)`;
+                
+                changeEl.textContent = changeText;
+                changeEl.className = 'price-change ' + (change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral');
+            }
+        }
+
+        // 创建图表
+        function createChart(index, data) {
+            const canvas = document.getElementById(`chart-${index.symbol}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            
+            // 销毁旧图表
+            if (charts[index.symbol]) {
+                charts[index.symbol].destroy();
+            }
+
+            // 准备数据集：主价格线
+            const datasets = [{
+                label: index.name,
+                data: data.map(d => d.price),
+                borderColor: getChartColor(index),
+                backgroundColor: getChartColor(index, 0.1),
+                borderWidth: 2,
+                fill: true,
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 4
+            }];
+
+            // 添加月度枢轴点（实线，较粗）
+            if (index.monthlyPivots) {
+                const monthlyGroups = {};
+                index.monthlyPivots.forEach(pivot => {
+                    if (!monthlyGroups[pivot.date]) {
+                        monthlyGroups[pivot.date] = [];
+                    }
+                    monthlyGroups[pivot.date].push(pivot);
+                });
+
+                Object.keys(monthlyGroups).forEach(monthStr => {
+                    const pivots = monthlyGroups[monthStr];
+                    const { startDate, endDate } = getMonthlyPivotTimeRange(monthStr);
+                    const month = monthStr.split('-')[1];
+                    const legendPrefix = `M${month}`;
+
+                    pivots.forEach((pivot, idx) => {
+                        const lineData = createPivotLine(startDate, endDate, pivot.value);
+                        const showLegend = idx === 0;
+                        
+                        datasets.push({
+                            label: showLegend ? legendPrefix : '',
+                            pivotType: pivot.label,
+                            pivotLabel: `${legendPrefix}-${pivot.label}`,
+                            isPivot: true,
+                            pivotPeriod: 'monthly',
+                            data: lineData,
+                            borderColor: getMonthlyPivotColor(pivot.label),
+                            borderWidth: 3,           // 加粗 3px，实线
+                            pointRadius: 0,           // 不显示点
+                            pointHoverRadius: 0,
+                            pointHitRadius: 0,
+                            fill: false,
+                            tension: 0,
+                            showLine: true,
+                            order: 2
+                        });
+                    });
+                });
+            }
+
+            // 添加周度枢轴点（虚线，中等粗）
+            if (index.weeklyPivots) {
+                const weeklyGroups = {};
+                index.weeklyPivots.forEach(pivot => {
+                    const weekKey = `${pivot.date}_${pivot.endDate}`;
+                    if (!weeklyGroups[weekKey]) {
+                        weeklyGroups[weekKey] = [];
+                    }
+                    weeklyGroups[weekKey].push(pivot);
+                });
+
+                const weekNumbers = {};
+                Object.keys(weeklyGroups).forEach(weekKey => {
+                    const [dateStr] = weekKey.split('_');
+                    const [year, month] = dateStr.split('-').slice(0, 2);
+                    const monthKey = `${year}-${month}`;
+                    
+                    if (!weekNumbers[monthKey]) {
+                        weekNumbers[monthKey] = [];
+                    }
+                    if (!weekNumbers[monthKey].includes(weekKey)) {
+                        weekNumbers[monthKey].push(weekKey);
+                    }
+                });
+
+                Object.keys(weeklyGroups).forEach(weekKey => {
+                    const pivots = weeklyGroups[weekKey];
+                    const [dateStr, endDateStr] = weekKey.split('_');
+                    const { startDate, endDate } = getWeeklyPivotTimeRange(dateStr, endDateStr);
+                    
+                    const [year, month] = dateStr.split('-').slice(0, 2);
+                    const monthKey = `${year}-${month}`;
+                    const weekNumber = weekNumbers[monthKey].indexOf(weekKey) + 1;
+                    const legendPrefix = `M${month}W${weekNumber}`;
+
+                    // 添加枢轴点参考线
+                    pivots.forEach((pivot, idx) => {
+                        const lineData = createPivotLine(startDate, endDate, pivot.value);
+                        const showLegend = idx === 0;
+                        
+                        datasets.push({
+                            label: showLegend ? legendPrefix : '',
+                            pivotType: pivot.label,
+                            pivotLabel: `${legendPrefix}-${pivot.label}`,
+                            isPivot: true,
+                            pivotPeriod: 'weekly',
+                            data: lineData,
+                            borderColor: getWeeklyPivotColor(pivot.label),
+                            borderWidth: 2,           // 中等粗
+                            borderDash: [5, 3],       // 短虚线
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            pointHitRadius: 0,
+                            fill: false,
+                            tension: 0,
+                            showLine: true,
+                            order: 1
+                        });
+                    });
+
+                    // 添加周度枢轴点之间的背景渐变（与PC端一致）
+                    const pivotOrder = { 'R3': 0, 'R2': 1, 'R1': 2, 'P': 3, 'S1': 4, 'S2': 5, 'S3': 6 };
+                    const sortedPivots = [...pivots].sort((a, b) => pivotOrder[a.label] - pivotOrder[b.label]);
+                    
+                    const P = sortedPivots.find(p => p.label === 'P');
+                    if (P) {
+                        // P→R1→R2→R3 蓝色渐变（从浅到深）
+                        for (let i = 3; i > 0; i--) {
+                            const current = sortedPivots[i];      // R1, R2, R3
+                            const next = sortedPivots[i - 1];     // P, R1, R2
+                            if (!current || !next) continue;
+                            
+                            // 透明度从0.03到0.09，逐级变深
+                            const opacity = 0.03 + (4 - i) * 0.03;
+                            
+                            datasets.push({
+                                label: '',  // 背景不显示图例
+                                data: createPivotLine(startDate, endDate, current.value),
+                                backgroundColor: `rgba(59, 130, 246, ${opacity})`,  // 蓝色
+                                borderWidth: 0,
+                                pointRadius: 0,
+                                pointHoverRadius: 0,
+                                pointHitRadius: 0,
+                                fill: {
+                                    target: {
+                                        value: next.value
+                                    },
+                                    above: `rgba(59, 130, 246, ${opacity})`
+                                },
+                                order: 3,  // 最底层
+                                isPivot: false  // 标记为非枢轴点，tooltip不显示
+                            });
+                        }
+                        
+                        // P→S1→S2→S3 红色渐变（从浅到深）
+                        for (let i = 3; i < 6; i++) {
+                            const current = sortedPivots[i];      // P, S1, S2
+                            const next = sortedPivots[i + 1];     // S1, S2, S3
+                            if (!current || !next) continue;
+                            
+                            // 透明度从0.03到0.09，逐级变深
+                            const opacity = 0.03 + (i - 3) * 0.03;
+                            
+                            datasets.push({
+                                label: '',  // 背景不显示图例
+                                data: createPivotLine(startDate, endDate, current.value),
+                                backgroundColor: `rgba(239, 68, 68, ${opacity})`,  // 红色
+                                borderWidth: 0,
+                                pointRadius: 0,
+                                pointHoverRadius: 0,
+                                pointHitRadius: 0,
+                                fill: {
+                                    target: {
+                                        value: next.value
+                                    },
+                                    below: `rgba(239, 68, 68, ${opacity})`
+                                },
+                                order: 3,  // 最底层
+                                isPivot: false  // 标记为非枢轴点，tooltip不显示
+                            });
+                        }
+                    }
+                });
+            }
+
+            // 计算Y轴自适应范围
+            let minValue = Infinity;
+            let maxValue = -Infinity;
+            
+            // 从价格数据中获取范围
+            data.forEach(d => {
+                if (d.price < minValue) minValue = d.price;
+                if (d.price > maxValue) maxValue = d.price;
+            });
+            
+            // 从月度枢轴点中获取范围
+            if (index.monthlyPivots) {
+                index.monthlyPivots.forEach(p => {
+                    if (p.value < minValue) minValue = p.value;
+                    if (p.value > maxValue) maxValue = p.value;
+                });
+            }
+            
+            // 从周度枢轴点中获取范围
+            if (index.weeklyPivots) {
+                index.weeklyPivots.forEach(p => {
+                    if (p.value < minValue) minValue = p.value;
+                    if (p.value > maxValue) maxValue = p.value;
+                });
+            }
+            
+            // 添加5%的上下边距
+            const padding = (maxValue - minValue) * 0.05;
+            minValue = Math.floor(minValue - padding);
+            maxValue = Math.ceil(maxValue + padding);
+
+            // 计算X轴时间范围：当前时间前后各3天
+            const now = new Date();
+            const threeDays = 3 * 24 * 60 * 60 * 1000;
+            const xMin = new Date(now.getTime() - threeDays);
+            const xMax = new Date(now.getTime() + threeDays);
+
+            charts[index.symbol] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.time)),
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: true,
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleFont: { size: 12 },
+                            bodyFont: { size: 11 },
+                            padding: 8,
+                            filter: function(tooltipItem) {
+                                // 只在主价格线（第0个数据集）上显示tooltip
+                                return tooltipItem.datasetIndex === 0;
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            min: xMin,
+                            max: xMax,
+                            time: {
+                                tooltipFormat: 'MM/dd HH:mm',
+                                displayFormats: {
+                                    hour: 'MM/dd HH:mm',
+                                    day: 'MM/dd'
+                                }
+                            },
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: { size: 10 },
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 4
+                            }
+                        },
+                        y: {
+                            min: minValue,
+                            max: maxValue,
+                            position: 'right',
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                font: { size: 10 },
+                                maxTicksLimit: 5,
+                                callback: (value) => value.toFixed(0)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 获取图表颜色
+        function getChartColor(index, alpha = 1) {
+            const colors = {
+                us: `rgba(59, 130, 246, ${alpha})`,
+                hk: `rgba(239, 68, 68, ${alpha})`,
+                cn: `rgba(34, 197, 94, ${alpha})`,
+                pm: `rgba(251, 191, 36, ${alpha})`
+            };
+            return colors[index.market] || `rgba(100, 116, 139, ${alpha})`;
+        }
+
+        // 显示错误
+        function showError(symbol) {
+            const card = document.querySelector(`[data-symbol="${symbol}"]`);
+            if (card) {
+                const chartContainer = card.querySelector('.chart-container');
+                chartContainer.innerHTML = '<div class="error">❌ 数据加载失败</div>';
+            }
+        }
+
+        // 筛选指数
+        function filterIndices() {
+            document.querySelectorAll('.index-card').forEach(card => {
+                const market = card.dataset.market;
+                if (currentMarket === 'all' || currentMarket === market) {
+                    card.classList.remove('hidden');
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+        }
+
+        // 获取时间参数
+        function getPeriodParam() {
+            const periods = {
+                '1d': 86400,
+                '6d': 518400,  // 6天 = 6 * 24 * 3600
+                '1w': 604800,
+                '1m': 2592000,
+                '3m': 7776000
+            };
+            return periods[currentRange] || 518400;  // 默认6天
+        }
+
+        function getIntervalParam() {
+            const intervals = {
+                '1d': '5m',
+                '6d': '15m',  // 6天用15分钟间隔
+                '1w': '1h',
+                '1m': '1d',
+                '3m': '1d'
+            };
+            return intervals[currentRange] || '15m';  // 默认15分钟
+        }
+
+        // 更新时间
+        function updateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('updateTime').textContent = `最后更新: ${timeStr}`;
+        }
+    </script>
+</body>
+</html>
+
