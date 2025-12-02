@@ -6,8 +6,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>📊 指数监控 - 移动版</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <!-- 使用国内CDN加速 -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -794,19 +795,32 @@
             `;
         }
 
-        // 加载指数数据
+        // 加载指数数据（带超时）
         async function loadIndexData(index) {
             try {
-                const data = await fetchIndexData(index);
+                // 设置10秒超时
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('timeout')), 10000)
+                );
+                
+                const data = await Promise.race([
+                    fetchIndexData(index),
+                    timeoutPromise
+                ]);
+                
                 if (data && data.length > 0) {
                     updateIndexDisplay(index, data);
                     createChart(index, data);
                 } else {
-                    showError(index.symbol);
+                    showError(index.symbol, '暂无数据');
                 }
             } catch (error) {
                 console.error(`加载 ${index.symbol} 失败:`, error);
-                showError(index.symbol);
+                if (error.message === 'timeout') {
+                    showError(index.symbol, '加载超时，请刷新重试');
+                } else {
+                    showError(index.symbol, '数据加载失败');
+                }
             }
         }
 
