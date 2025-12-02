@@ -854,12 +854,23 @@
                     }
                     
                     const response = await fetch(url);
+                    
+                    // 检查429限流错误
+                    if (response.status === 429) {
+                        console.log(`Yahoo Finance 限流，跳过: ${index.symbol}`);
+                        throw new Error('Rate limited');
+                    }
+                    
                     const json = await response.json();
                     
                     if (json.chart?.result?.[0]) {
                         return parseYahooData(json.chart.result[0]);
                     }
                 } catch (error) {
+                    if (error.message === 'Rate limited') {
+                        // 限流错误，直接跳过不尝试新浪
+                        return null;
+                    }
                     console.log(`Yahoo Finance 失败，尝试新浪: ${index.symbol}`);
                 }
             }
@@ -1255,11 +1266,11 @@
         }
 
         // 显示错误
-        function showError(symbol) {
+        function showError(symbol, message = '数据加载失败') {
             const card = document.querySelector(`[data-symbol="${symbol}"]`);
             if (card) {
                 const chartContainer = card.querySelector('.chart-container');
-                chartContainer.innerHTML = '<div class="error">❌ 数据加载失败</div>';
+                chartContainer.innerHTML = `<div class="error">❌ ${message}</div>`;
             }
         }
 
