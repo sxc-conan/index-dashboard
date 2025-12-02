@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 指数监控 - 轻量版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f7fa;
+            padding: 10px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+        .header h1 {
+            font-size: 1.2em;
+            margin-bottom: 5px;
+        }
+        .update-time {
+            font-size: 0.75em;
+            opacity: 0.9;
+        }
+        .index-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .card-title {
+            font-size: 0.9em;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+        .price-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .current-price {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #1e293b;
+        }
+        .price-change {
+            font-size: 0.9em;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        .price-change.positive {
+            color: #10b981;
+            background: #d1fae5;
+        }
+        .price-change.negative {
+            color: #ef4444;
+            background: #fee2e2;
+        }
+        .pivot-info {
+            margin-top: 12px;
+            font-size: 0.85em;
+            color: #64748b;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 10px;
+        }
+        .pivot-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+        .pivot-label {
+            font-weight: 600;
+        }
+        .pivot-label.resistance {
+            color: #3b82f6;
+        }
+        .pivot-label.pivot {
+            color: #f59e0b;
+        }
+        .pivot-label.support {
+            color: #ef4444;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #94a3b8;
+        }
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #ef4444;
+        }
+        .refresh-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            font-size: 1.5em;
+            cursor: pointer;
+        }
+        .refresh-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 指数监控</h1>
+        <div class="update-time" id="updateTime">加载中...</div>
+    </div>
+
+    <div id="container">
+        <div class="loading">🔄 正在加载数据...</div>
+    </div>
+
+    <button class="refresh-btn" onclick="loadAllData()">🔄</button>
+
+    <script>
+        const INDICES = [
+            { 
+                symbol: 'NDX', 
+                name: '纳斯达克100', 
+                sina: null,
+                pivots: { R3: 28706.0, R2: 27419.4, R1: 26427.2, P: 25140.6, S1: 24148.3, S2: 22861.8, S3: 21869.5 }
+            },
+            { 
+                symbol: 'SPX', 
+                name: '标普500', 
+                sina: null,
+                pivots: { R3: 7340.6, R2: 7111.5, R1: 6980.2, P: 6751.1, S1: 6619.8, S2: 6390.7, S3: 6259.4 }
+            },
+            { 
+                symbol: 'HSI', 
+                name: '恒生指数', 
+                sina: 'hf_HSI',
+                pivots: { R3: 28982.4, R2: 28085.6, R1: 26972.3, P: 26075.4, S1: 24962.1, S2: 24065.3, S3: 22951.9 }
+            },
+            { 
+                symbol: 'CSI300', 
+                name: '沪深300', 
+                sina: 'sh000300',
+                pivots: { R3: 4967.2, R2: 4837.2, R1: 4681.9, P: 4551.9, S1: 4396.6, S2: 4266.5, S3: 4111.3 }
+            },
+            { 
+                symbol: 'KCB50', 
+                name: '科创50', 
+                sina: 'sh000688',
+                pivots: { R3: 1591.5, R2: 1517.1, R1: 1422.1, P: 1347.8, S1: 1252.8, S2: 1178.5, S3: 1083.5 }
+            },
+            { 
+                symbol: 'XAUUSD', 
+                name: '现货黄金', 
+                sina: 'hf_GC',
+                pivots: { R3: 4695.2, R2: 4479.1, R1: 4367.8, P: 4151.7, S1: 4040.4, S2: 3824.3, S3: 3713.0 }
+            },
+            { 
+                symbol: 'XAGUSD', 
+                name: '现货白银', 
+                sina: 'hf_SI',
+                pivots: { R3: 71.4, R2: 64.3, R1: 60.7, P: 53.6, S1: 50.0, S2: 42.9, S3: 39.3 }
+            }
+        ];
+
+        async function loadAllData() {
+            const container = document.getElementById('container');
+            container.innerHTML = '<div class="loading">🔄 正在加载数据...</div>';
+
+            let html = '';
+            for (const index of INDICES) {
+                html += await createIndexCard(index);
+            }
+            
+            container.innerHTML = html || '<div class="error">❌ 数据加载失败</div>';
+            updateTime();
+        }
+
+        async function createIndexCard(index) {
+            try {
+                const price = await fetchPrice(index);
+                if (!price) {
+                    return `
+                        <div class="index-card">
+                            <div class="card-title">${index.name} (${index.symbol})</div>
+                            <div class="error">暂无数据</div>
+                        </div>
+                    `;
+                }
+
+                const change = price.change || 0;
+                const changePct = price.changePct || 0;
+                const changeClass = change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral';
+                
+                return `
+                    <div class="index-card">
+                        <div class="card-title">${index.name} (${index.symbol})</div>
+                        <div class="price-info">
+                            <div class="current-price">${price.current.toFixed(2)}</div>
+                            <div class="price-change ${changeClass}">
+                                ${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct.toFixed(2)}%)
+                            </div>
+                        </div>
+                        <div class="pivot-info">
+                            <div class="pivot-line">
+                                <span class="pivot-label resistance">R1</span>
+                                <span>${index.pivots.R1.toFixed(2)}</span>
+                            </div>
+                            <div class="pivot-line">
+                                <span class="pivot-label pivot">P</span>
+                                <span>${index.pivots.P.toFixed(2)}</span>
+                            </div>
+                            <div class="pivot-line">
+                                <span class="pivot-label support">S1</span>
+                                <span>${index.pivots.S1.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error(`加载 ${index.symbol} 失败:`, error);
+                return `
+                    <div class="index-card">
+                        <div class="card-title">${index.name} (${index.symbol})</div>
+                        <div class="error">加载失败</div>
+                    </div>
+                `;
+            }
+        }
+
+        async function fetchPrice(index) {
+            if (!index.sina) return null;
+            
+            try {
+                const url = `/api/sina?symbol=${index.sina}`;
+                const response = await fetch(url, { timeout: 5000 });
+                const text = await response.text();
+                
+                const match = text.match(/="([^"]+)"/);
+                if (!match) return null;
+
+                const parts = match[1].split(',');
+                const current = parseFloat(parts[0] || parts[3]);
+                const open = parseFloat(parts[1] || parts[0]);
+                
+                if (isNaN(current)) return null;
+
+                const change = current - open;
+                const changePct = (change / open) * 100;
+
+                return { current, change, changePct };
+            } catch (error) {
+                console.error(`获取 ${index.symbol} 价格失败:`, error);
+                return null;
+            }
+        }
+
+        function updateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleString('zh-CN', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            document.getElementById('updateTime').textContent = `更新: ${timeStr}`;
+        }
+
+        // 页面加载完成后自动加载数据
+        document.addEventListener('DOMContentLoaded', loadAllData);
+    </script>
+</body>
+</html>
+
