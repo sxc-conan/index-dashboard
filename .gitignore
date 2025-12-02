@@ -36,3 +36,7 @@ data/*.json
 .env
 .env.local
 
+# Vercel
+.vercel
+.vercel.json.backup
+

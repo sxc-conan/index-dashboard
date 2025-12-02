@@ -54,12 +54,13 @@ python start_server.py
 - 💾 自动数据缓存
 
 **访问地址：**
-- 完整看板：http://localhost:8888/index.html
-- 简单版：http://localhost:8888/dashboard-simple.html
+- PC端看板：http://localhost:8902/index.html
+- 📱 **移动端看板**：http://localhost:8902/mobile.html
+- 简单版：http://localhost:8902/dashboard-simple.html
 
 **可选CORS代理：** 如遇数据加载问题，可运行：
 ```bash
-python web/cors_proxy.py
+python web/cors_proxy_simple.py
 ```
 
 ### 运行Python程序
@@ -136,12 +137,39 @@ data = {
 generate_pivot_chart(data, output_path='charts/pivot_chart.png')
 ```
 
+## ☁️ 云部署（随时随地访问）
+
+想在手机上随时随地查看指数数据？可以将项目部署到 Vercel！
+
+### 快速部署
+
+1. 将代码推送到 GitHub
+2. 访问 [Vercel](https://vercel.com) 并登录
+3. 点击 "New Project" 并选择你的仓库
+4. 点击 "Deploy" 完成部署
+
+**详细步骤请查看：[DEPLOY.md](DEPLOY.md)**
+
+### 部署后访问
+
+- PC端：`https://your-project.vercel.app/index.html`
+- 📱 移动端：`https://your-project.vercel.app/mobile.html`
+
+**特点：**
+- ✅ 完全免费
+- ✅ HTTPS 安全访问
+- ✅ 全球 CDN 加速
+- ✅ 自动 CORS 代理
+- ✅ 可添加到手机主屏幕
+
 ## 开发计划
 
 - [x] 基础项目结构
 - [x] Web界面（实时指数看板）
 - [x] 枢轴点实时展示
 - [x] 多数据源支持
+- [x] 📱 移动端页面
+- [x] ☁️ Vercel 云部署支持
 - [ ] 数据导入功能
 - [ ] 枢轴点计算算法
 - [ ] 图表生成优化

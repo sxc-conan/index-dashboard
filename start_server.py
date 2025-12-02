@@ -11,7 +11,7 @@ import webbrowser
 from pathlib import Path
 
 # 配置
-PORT = 8888
+PORT = 8902
 WEB_DIR = Path(__file__).parent / 'web'
 
 class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -34,7 +34,8 @@ def start_server():
             print("=" * 60)
             print("🚀 指数狂飙 Web服务器已启动！")
             print("=" * 60)
-            print(f"📊 指数看板地址: {url}/index.html")
+            print(f"📊 桌面版看板: {url}/index.html")
+            print(f"📱 移动版看板: {url}/mobile.html")
             print(f"📈 简单仪表板: {url}/dashboard-simple.html")
             print("=" * 60)
             print(f"🌐 服务器运行在端口 {PORT}")
@@ -42,11 +43,11 @@ def start_server():
             print("=" * 60)
             
             # 自动打开浏览器
-            try:
-                webbrowser.open(f"{url}/index.html")
-                print("✅ 已自动打开浏览器")
-            except:
-                print("ℹ️  请手动在浏览器中打开上述地址")
+            # try:
+            #     webbrowser.open(f"{url}/index.html")
+            #     print("✅ 已自动打开浏览器")
+            # except:
+            #     print("ℹ️  请手动在浏览器中打开上述地址")
             
             print()
             httpd.serve_forever()
