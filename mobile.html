@@ -6,9 +6,15 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>📊 指数监控 - 移动版</title>
-    <!-- 使用国内CDN加速 -->
-    <script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <!-- 使用unpkg国内镜像CDN加速 -->
+    <script src="https://unpkg.com/chart.js@4.4.0/dist/chart.umd.js" onerror="console.error('Chart.js加载失败')"></script>
+    <script src="https://unpkg.com/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" onerror="console.error('Date adapter加载失败')"></script>
+    <script>
+        // 显示加载进度
+        window.addEventListener('load', function() {
+            console.log('✅ 所有资源加载完成');
+        });
+    </script>
     <style>
         * {
             margin: 0;
@@ -335,7 +341,8 @@
     <div class="indices-container" id="indicesContainer">
         <div class="loading">
             <div class="spinner"></div>
-            <div>加载中...</div>
+            <div>正在加载图表库...</div>
+            <div style="font-size: 0.8em; margin-top: 10px; color: #94a3b8;">首次访问需要10-20秒</div>
         </div>
     </div>
 
